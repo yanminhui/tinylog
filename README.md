@@ -10,23 +10,23 @@
 
 ## Design goals
 
-Thare are myriads of logging libraries of C++ out there. Many of them have extensive functionality，the often complex configuration, and provide interfaces in a shared library. Our class had these design goals:
+Thare are myriads of logging libraries of C++ out there. Many of them have extensive functionality, often complex configuration, and provide interfaces in a shared library. Our class had these design goals:
 
-- **Trivial integration**： Our whole code consistes of a single header file [`tinylog.hpp`](https://github.com/yanminhui/tinylog/tree/master/include/tinylog.hpp). That's it. No library, no subject, no dependencies, no complex build system.
+- **Trivial integration**: Our whole code base consistes of a single header file [`tinylog.hpp`](https://github.com/yanminhui/tinylog/tree/master/include/tinylog.hpp). That's it. No library, no dependencies, no complex build system.
 
-- **Custom output sink**：Customizing ouput sink by inheriting from the class `basic_sink`. Console color sink and file sink is avaliable by default.
+- **Custom output sink**: Customize output sink by inheriting from the class `basic_sink`. Console color sink and file sink are available by default.
 
 - **Custom layout**: You can specify your own layout specifiers. In order to do that you can use template parameters in output sinks.
 
-- **Formatting**：Logging like `printf` is available. This is done by using `l[w]printf` marcos. Logging like `std::cout` is recommanded.
+- **Formatting**: Logging like `printf` is available. This is done by using `l[w]printf` marcos. Logging like `std::cout` is recommended.
 
-- **STL logging**：You can log your STL template including most containers，and containers may be supported in other libraries.
+- **STL logging**: You can log STL template classes including most containers, and containers may be supported in other libraries.
 
-- **Memory dump**：Dump bytes stream by using `hexdump`.
+- **Memory dump**: Dump byte streams by using `hexdump`.
 
-- **Internationalized**：`wchar_t` and `char` string output is supported.
+- **Internationalized**: `wchar_t` and `char` string output is supported.
 
-- **Thread and type safe**：By default thread-safety is enabled, you can disbled it  by defining `TINYLOG_USE_SINGLE_THREAD`.
+- **Thread and type safe**: By default thread-safety is enabled, you can disable it by defining `TINYLOG_USE_SINGLE_THREAD`.
 
 ## Supported compilers
 
@@ -131,4 +131,4 @@ SOFTWARE.
 
 ## Contact
 
-If you have questions regarding the library，I would like to invite you to [open an issue at GitHub](https://github.com/yanminhui/tinylog/issues/new)，Opening an issue at GitHub allows other users and contributors to this library to collaborate.
+If you have questions regarding the library, I would like to invite you to [open an issue at GitHub](https://github.com/yanminhui/tinylog/issues/new). Opening an issue at GitHub allows other users and contributors to this library to collaborate.
