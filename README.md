@@ -92,7 +92,7 @@ int main(int argc, char* argv[])
 
 The class is licensed under the [MIT License](http://opensource.org/licenses/MIT):
 
-Copyright &copy; 2018 [颜闽辉](mailto://yanminhui163@163.com)
+Copyright &copy; 2018 [颜闽辉](mailto:yanminhui163@163.com)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
