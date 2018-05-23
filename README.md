@@ -1,3 +1,4 @@
+# TinyLog
 
 ## 设计目标
 
@@ -19,15 +20,15 @@
 
 ## 支持的编译器
 
-直到 2018 年，当前 C++ 已经发展到 C++17，新的版本尚末广泛普及。而 C++11 是发展过程中的一个重大变化的版本，支持了很多新的特性，到目前为止，已被普通接受。我们目前在以下编译进行了验证：
+直到 2018 年，当前 C++ 已经发展到 C++17，新的版本尚末广泛普及。而 C++11 是发展过程中的一个重大变化的版本，支持了很多新的特性，到目前为止，已被普通接受。我们目前在以下编译环境进行了验证：
 
-- GCC 5.4.0 / CentOS 6.5
+- GCC 5.4.0 / Ubuntu 16.04.3 LTS
 - Clang 9.1.0 / MacOS 10.13.4
 - Microsoft Visual C++ 2015 / Windows 7
 
 ## 整合
 
-只需要让你的工程可以搜索到 [`include`](https://github.com/yanminhui/tinylog/include) 目录下的头文件 [`tinylog.hpp`](https://github.com/yanminhui/tinylog/include/tinylog.hpp)  即可。这个库没有任何依赖，所有你需要做的就是添加以下代码到你需要输出日志的地方。
+只需要让你的工程可以搜索到 [`include`](https://github.com/yanminhui/tinylog/tree/master/include) 目录下的头文件 [`tinylog.hpp`](https://github.com/yanminhui/tinylog/tree/master/include/tinylog.hpp)  即可。这个库没有任何依赖，所有你需要做的就是添加以下代码到你需要输出日志的地方。
 
 ~~~cpp
 #include "tinylog.hpp"
@@ -82,6 +83,9 @@ int main(int argc, char* argv[])
     return 0;
 }
 ~~~
+
+> 上述例子存在 [example_narrow](https://github.com/yanminhui/tinylog/tree/master/example/example_narrow.cpp)
+> 宽字符版本见 [example_unicode](https://github.com/yanminhui/tinylog/tree/master/example/example_narrow.cpp)
 
 ## 授权
 <img align="right" src="http://opensource.org/trademarks/opensource/OSI-Approved-License-100x137.png">
