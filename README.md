@@ -85,7 +85,7 @@ int main(int argc, char* argv[])
 ~~~
 
 > 上述例子存在 [example_narrow](https://github.com/yanminhui/tinylog/tree/master/example/example_narrow.cpp)
-> 宽字符版本见 [example_unicode](https://github.com/yanminhui/tinylog/tree/master/example/example_narrow.cpp)
+> 宽字符版本见 [example_unicode](https://github.com/yanminhui/tinylog/tree/master/example/example_unicode.cpp)
 
 ## 授权
 <img align="right" src="http://opensource.org/trademarks/opensource/OSI-Approved-License-100x137.png">
