@@ -52,7 +52,7 @@ int main(int argc, char* argv[])
     using namespace tinylog;
 
     //--------------|
-    // 设置         |
+    // 设置          |
     //--------------|
     // 安装输出槽: @see std::make_shared<>
     logger::add_sink<sink::console_sink>();
@@ -67,7 +67,7 @@ int main(int argc, char* argv[])
     lout_d << logger::title();
 
     //--------------|
-    // 输出日志    |
+    // 输出日志       |
     //--------------|
     // 普通文本
     lout(info) << "Weclome to TinyLog !!!" << std::endl;
