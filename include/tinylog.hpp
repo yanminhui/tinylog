@@ -1,10 +1,13 @@
 ﻿/*
-TinyLog for Modern C++
-version 1.0.0
-https://github.com/yanminhui/tinylog
+ _____ _             _                
+|_   _(_)_ __  _   _| |    ___   __ _ 
+  | | | | '_ \| | | | |   / _ \ / _` | TinyLog for Modern C++
+  | | | | | | | |_| | |__| (_) | (_| | version 1.0.0
+  |_| |_|_| |_|\__, |_____\___/ \__, | https://github.com/yanminhui/tinylog
+               |___/            |___/ 
 
 Licensed under the MIT License <http://opensource.org/licenses/MIT>.
-Copyright (c) 2018 颜闽辉 <mailto://yanminhui163@163.com>.
+Copyright (c) 2018 颜闽辉 <mailto:yanminhui163@163.com>.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
