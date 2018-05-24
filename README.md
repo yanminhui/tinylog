@@ -4,7 +4,7 @@
 [![GitHub License](https://img.shields.io/badge/license-MIT-blue.svg)](https://www.github.com/yanminhui/tinylog/tree/master/LICENSE)
 [![GitHub Releases](https://img.shields.io/github/release/yanminhui/tinylog.svg)](https://github.com/yanminhui/tinylog/releases)
 [![GitHub Platform](https://img.shields.io/badge/platform-linux%2Fmacos%2Fwindows-brightgreen.svg)](https://github.com/yanminhui/tinylog/tree/master/README.md)
-[![GitHub Issues](https://img.shields.io/github/issues/yanminhui/tinylog.svg)](http://github.com/yanminhui/tinylog/issues)
+[![GitHub Issues](https://img.shields.io/github/issues/yanminhui/tinylog.svg)](https://github.com/yanminhui/tinylog/issues)
 
 ## 设计目标
 
@@ -93,7 +93,7 @@ int main(int argc, char* argv[])
 > 上述例子存在 [example_narrow](https://github.com/yanminhui/tinylog/tree/master/example/example_narrow.cpp)
 > 宽字符版本见 [example_unicode](https://github.com/yanminhui/tinylog/tree/master/example/example_unicode.cpp)
 
-![example_narrow](https://github.com/yanminhui/tinylog/tree/master/example/example_narrow.png)
+![example_narrow](https://raw.githubusercontent.com/yanminhui/tinylog/master/example/example_narrow.png)
 
 ## 授权
 
