@@ -1,5 +1,11 @@
 # TinyLog
 
+[![GitHub Author](https://img.shields.io/badge/%E4%BD%9C%E8%80%85-%E9%A2%9C%E9%97%BD%E8%BE%89-blue.svg)](mailto:yanminhui163@163.com)
+[![GitHub License](https://img.shields.io/badge/license-MIT-blue.svg)](https://www.github.com/yanminhui/tinylog/tree/master/LICENSE)
+[![GitHub Releases](https://img.shields.io/github/release/yanminhui/tinylog.svg)](https://github.com/yanminhui/tinylog/releases)
+[![GitHub Platform](https://img.shields.io/badge/platform-linux%2Fmacos%2Fwindows-brightgreen.svg)](https://github.com/yanminhui/tinylog/tree/master/README.md)
+[![GitHub Issues](https://img.shields.io/github/issues/yanminhui/tinylog.svg)](http://github.com/yanminhui/tinylog/issues)
+
 ## 设计目标
 
 当前存在不少 C++ 的日志工具库，很多都功能丰富，配置也较为繁重，以共享库的方式提供。工具最主要的目标是： **满足条件，易于使用。** 我们使用现代 C++ 编程能力，旨在实现一个尽可能满足条件的日志工具库。
@@ -87,7 +93,10 @@ int main(int argc, char* argv[])
 > 上述例子存在 [example_narrow](https://github.com/yanminhui/tinylog/tree/master/example/example_narrow.cpp)
 > 宽字符版本见 [example_unicode](https://github.com/yanminhui/tinylog/tree/master/example/example_unicode.cpp)
 
+![example_narrow](https://github.com/yanminhui/tinylog/tree/master/example/example_narrow.png)
+
 ## 授权
+
 <img align="right" src="http://opensource.org/trademarks/opensource/OSI-Approved-License-100x137.png">
 
 The class is licensed under the [MIT License](http://opensource.org/licenses/MIT):
