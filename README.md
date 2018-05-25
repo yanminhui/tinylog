@@ -3,7 +3,7 @@
 [![GitHub Author](https://img.shields.io/badge/%E4%BD%9C%E8%80%85-%E9%A2%9C%E9%97%BD%E8%BE%89-blue.svg)](mailto:yanminhui163@163.com)
 [![GitHub License](https://img.shields.io/badge/license-MIT-blue.svg)](https://www.github.com/yanminhui/tinylog/tree/master/LICENSE)
 [![GitHub Releases](https://img.shields.io/github/release/yanminhui/tinylog.svg)](https://github.com/yanminhui/tinylog/releases)
-[![GitHub Platform](https://img.shields.io/badge/platform-linux%2Fmacos%2Fwindows-brightgreen.svg)](https://github.com/yanminhui/tinylog/tree/master/README.md)
+[![GitHub Platform](https://img.shields.io/badge/platform-%20linux%20%7C%20macos%20%7C%20windows%20-brightgreen.svg)](https://github.com/yanminhui/tinylog/tree/master/README.md)
 [![GitHub Issues](https://img.shields.io/github/issues/yanminhui/tinylog.svg)](https://github.com/yanminhui/tinylog/issues)
 
 ## 设计目标
