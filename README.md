@@ -50,6 +50,7 @@ using namespace tinylog;
 ~~~cpp
 #include "tinylog.hpp"
 
+#include <locale>
 #include <map>
 #include <string>
 
@@ -60,6 +61,9 @@ int main(int argc, char* argv[])
     //--------------|
     // 设置          |
     //--------------|
+    std::locale loc("");
+    std::locale::global(loc);
+    
     // 安装输出槽: @see std::make_shared<>
     logger::add_sink<sink::console_sink>();
 
