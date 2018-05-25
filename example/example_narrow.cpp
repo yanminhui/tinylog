@@ -1,5 +1,6 @@
 ﻿#include "tinylog.hpp"
 
+#include <locale>
 #include <map>
 #include <string>
 
