@@ -1,6 +1,6 @@
 # TinyLog
 
-[![GitHub Author](https://img.shields.io/badge/author-%E9%A2%9C%E9%97%BD%E8%BE%89-blue.svg)](mailto:yanminhui163@163.com)
+[![GitHub Author](https://img.shields.io/badge/%E4%BD%9C%E8%80%85-%E9%A2%9C%E9%97%BD%E8%BE%89-blue.svg)](mailto:yanminhui163@163.com)
 [![GitHub License](https://img.shields.io/badge/license-MIT-blue.svg)](https://www.github.com/yanminhui/tinylog/tree/master/LICENSE)
 [![GitHub Releases](https://img.shields.io/github/release/yanminhui/tinylog.svg)](https://github.com/yanminhui/tinylog/releases)
 [![GitHub Platform](https://img.shields.io/badge/platform-%20linux%20%7C%20macos%20%7C%20windows%20-brightgreen.svg)](https://github.com/yanminhui/tinylog/tree/master/README.md)
@@ -8,48 +8,48 @@
 
 [**English**](https://github.com/yanminhui/tinylog/tree/master/README.md)    [**简体中文**](https://github.com/yanminhui/tinylog/tree/master/README_CN.md)
 
-## Design goals
+## 设计目标
 
-Thare are myriads of logging libraries of C++ out there. Many of them have extensive functionality，the often complex configuration, and provide interfaces in a shared library. Our class had these design goals:
+当前存在不少 C++ 的日志工具库，很多都功能丰富，配置也较为繁重，以共享库的方式提供。工具最主要的目标是： **满足条件，易于使用。** 我们使用现代 C++ 编程能力，旨在实现一个尽可能满足条件的日志工具库。
 
-- **Trivial integration**： Our whole code consistes of a single header file [`tinylog.hpp`](https://github.com/yanminhui/tinylog/tree/master/include/tinylog.hpp). That's it. No library, no subject, no dependencies, no complex build system.
+- **易于整合**： 只需要一个头文件，并且没有任何依赖。
 
-- **Custom output sink**：Customizing ouput sink by deriving `basic_sink`. Console color sink and file sink is avaliable by default.
+- **定制输出槽**：可自定义日志输出槽，将记录输出到不同目标。默认提供了日志级别颜色显示的终端输出，以及支持 UTF-8 编码的文件输出。
 
-- **Custom layout**: You can specify your own layout specifiers. In order to do that you can use template parameters in output sinks.
+- **定制布局**: 利用日志槽模板参数，可传递日志记录格式。
 
-- **Formatting**：Logging like `printf` is available. This is done by using `l[w]printf` marcos. Logging like `std::cout` is recommanded.
+- **格式化**：同时支持 `l[w]printf` 格式化语法，以及 `[w]lout` 流输出。并且增强对 `printf` 格式化语法参数合法性的检查。
 
-- **STL logging**：You can log your STL template including most containers，and containers may be supported in other libraries.
+- **STL日志**：支持 STL 容器对象格式化输出，不仅仅限于 STL 容器。
 
-- **Memory dump**：Dump bytes stream by using `hexdump`.
+- **内存倾印**：提供 `hexdump` 以十六进制显示字节流内容。
 
-- **Internationalized**：`wchar_t` and `char` string output is supported.
+- **国际化支持**：从本质上支持 `unicode(wchar_t)` 及 `narrow(char)` 字符串输出。
 
-- **Thread and type safe**：By default thread-safety is enabled, you can disbled it  by defining `TINYLOG_USE_SINGLE_THREAD`.
+- **线程安全**：通过配置宏参数 `TINYLOG_USE_SINGLE_THREAD` 决定是否启用保护。
 
-## Supported compilers
+## 支持的编译器
 
-Currently, the following compilers are known to work:
+直到 2018 年，当前 C++ 已经发展到 C++17，新的版本尚末广泛普及。而 C++11 是发展过程中的一个重大变化的版本，支持了很多新的特性，到目前为止，已被普遍接受。我们目前在以下编译环境进行了验证：
 
 - GCC 5.4.0 / Ubuntu 16.04.3 LTS
 - Clang 9.1.0 / MacOS 10.13.4
 - Microsoft Visual C++ 2015 / Windows 7
 
-## Integration
+## 整合
 
-[`tinylog.hpp`](https://github.com/yanminhui/tinylog/tree/master/include/tinylog.hpp) is the single required file in [`include`](https://github.com/yanminhui/tinylog/tree/master/include). You need to add
+只需要让你的工程可以搜索到 [`include`](https://github.com/yanminhui/tinylog/tree/master/include) 目录下的头文件 [`tinylog.hpp`](https://github.com/yanminhui/tinylog/tree/master/include/tinylog.hpp)  即可。这个库没有任何依赖，所有你需要做的就是添加以下代码到你需要输出日志的地方。
 
 ~~~cpp
 #include "tinylog.hpp"
 
-// use namespace tinylog
+// 引入命名空间 tinylog
 using namespace tinylog;
 ~~~
 
-to the files you want to logging and set the necessary switches to enable C++11 (e.g., -std=c++11 for GCC and Clang).
+另外，别忘记设置启用 C++11 的开关（比如：对于 GCC 设置 `-std=c++11`）。
 
-## Example
+## 示例
 
 ~~~cpp
 #include "tinylog.hpp"
@@ -63,34 +63,34 @@ int main(int argc, char* argv[])
     using namespace tinylog;
 
     //--------------|
-    // Setting      |
+    // 设置          |
     //--------------|
     std::locale loc("");
     std::locale::global(loc);
 
-    // Setup sink: @see std::make_shared<>
+    // 安装输出槽: @see std::make_shared<>
     logger::add_sink<sink::console_sink<default_layout>>();
 
     constexpr auto max_file_size = 5 * 1024 * 1024; // 5MB
     logger::add_sink<sink::u8_file_sink<>>("default.log", max_file_size);
 
-    // Filter level
+    // 过滤日志级别
     logger::set_level(debug);
 
-    // [option] Output title
-    lout_d << logger::title("TinyLog");
+    // [可选] 输出日志边界
+    lout_d << logger::title();
 
     //--------------|
-    // Logging      |
+    // 输出日志       |
     //--------------|
-    // Normal text
+    // 普通文本
     lout(info) << "Weclome to TinyLog !!!" << std::endl;
 
-    // STL container
+    // STL容器
     std::map<std::string, size_t> const ages = {{ "tinylog", 1 }, { "json", 5 }};
     lout(warn) << "ages: " << ages << std::endl;
 
-    // Hex string
+    // 十六进制
     constexpr auto text = "Bravo! The job has been done well.";
     lout(error) << "hexdump: " << text << "\n" << hexdump(text);
 
@@ -98,12 +98,12 @@ int main(int argc, char* argv[])
 }
 ~~~
 
-> narrow version see [example_narrow](https://github.com/yanminhui/tinylog/tree/master/example/example_narrow.cpp)
-> unicode version see [example_unicode](https://github.com/yanminhui/tinylog/tree/master/example/example_unicode.cpp)
+> 上述例子存在 [example_narrow](https://github.com/yanminhui/tinylog/tree/master/example/example_narrow.cpp)
+> 宽字符版本见 [example_unicode](https://github.com/yanminhui/tinylog/tree/master/example/example_unicode.cpp)
 
 ![example_narrow](https://raw.githubusercontent.com/yanminhui/tinylog/master/example/example_narrow.png)
 
-## License
+## 授权
 
 <img align="right" src="http://opensource.org/trademarks/opensource/OSI-Approved-License-100x137.png">
 
@@ -129,6 +129,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-## Contact
+## 联系
 
-If you have questions regarding the library，I would like to invite you to [open an issue at GitHub](https://github.com/yanminhui/tinylog/issues/new)，Opening an issue at GitHub allows other users and contributors to this library to collaborate.
+如果你有关于这个库的问题或建议，请在 [Github 上打开一个 Issue](https://github.com/yanminhui/tinylog/issues/new)，便于大家分享观点，协同解决问题。

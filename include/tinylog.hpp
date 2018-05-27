@@ -1,10 +1,10 @@
 ﻿/*
- _____ _             _                
-|_   _(_)_ __  _   _| |    ___   __ _ 
+ _____ _             _
+|_   _(_)_ __  _   _| |    ___   __ _
   | | | | '_ \| | | | |   / _ \ / _` | TinyLog for Modern C++
-  | | | | | | | |_| | |__| (_) | (_| | version 1.0.0
+  | | | | | | | |_| | |__| (_) | (_| | version 1.1.0
   |_| |_|_| |_|\__, |_____\___/ \__, | https://github.com/yanminhui/tinylog
-               |___/            |___/ 
+               |___/            |___/
 
 Licensed under the MIT License <http://opensource.org/licenses/MIT>.
 Copyright (c) 2018 颜闽辉 <mailto:yanminhui163@163.com>.
@@ -35,6 +35,7 @@ SOFTWARE.
  *     - 支持 unicode(wchar_t) 及 narrow(char) 输出;
  *     - 支持输出 ansi、utf-8 格式日志文件;
  *     - 继承 basic_sink<> 可定制日志输出槽将日志输出至不同地方;
+ *     - 支持针对不同槽定制日志布局;
  *     - 支持 logger::add_sink<> 同时安装多个日志输出槽;
  *     - 支持 STL 容器格式化输出；
  *     - 提供 hexdump 以十六进制显示内容;
@@ -58,7 +59,7 @@ SOFTWARE.
  * //           UTF-8 文件槽, 产生以 UTF-8 格式编码的日志文件,
  * //     其它行为与 [w]file_sink 一样.
  * //
- * logger::add_sink<sink::wfile_sink>("d:\\default.log");
+ * logger::add_sink<sink::wfile_sink<default_layout>>("d:\\default.log");
  *
  * // 过滤日志级别
  * logger::set_level(info);
@@ -96,6 +97,9 @@ SOFTWARE.
  *  @date   2018-05-20
  *
  *****************************************************************************
+ *
+ * 1) 优化: 重新调整代码结构, 支持针对不同槽定制布局v1.1.0 2018/05/27 yanmh
+ *
  */
 
 #ifndef TINYTINYLOG_HPP
@@ -106,6 +110,7 @@ SOFTWARE.
 #include <cstdlib>
 #include <ctime>
 
+#include <atomic>
 #include <codecvt>
 #include <fstream>
 #include <functional>
@@ -127,8 +132,24 @@ SOFTWARE.
 
 // 版本信息
 #define TINYLOG_VERSION_MAJOR 1
-#define TINYLOG_VERSION_MINOR 0
+#define TINYLOG_VERSION_MINOR 1
 #define TINYLOG_VERSION_PATCH 0
+
+//--------------|
+// 用户可控制   |
+//--------------|
+
+// 使用单线程模式
+// #define TINYLOG_USE_SINGLE_THREAD 1
+
+// 禁止STL容器日志
+// #define TINYLOG_DISABLE_STL_LOGING 1
+
+// 禁止终端输出颜色
+// #define TINYLOG_DISABLE_CONSOLE_COLOR 1
+
+// 使用简体中文
+// #define TINYLOG_USE_SIMPLIFIED_CHINA 1
 
 #if defined(_WIN32) || defined(__CYGWIN__)
 #   define TINYLOG_WINDOWS_API
@@ -153,78 +174,88 @@ SOFTWARE.
 #define TINYLOG_TITILE_CHAR '+'
 #define TINYLOG_TITILE_CHARW TINYLOG_CRT_WIDE(TINYLOG_TITILE_CHAR)
 
+#define TINYLOG_LF '\n'
+#define TINYLOG_LFW TINYLOG_CRT_WIDE(TINYLOG_LF)
+
 // 时间格式: 2018/05/20 19:30:27
 #define TINYLOG_DATETIME_FMT "%Y/%m/%d %H:%M:%S"
 #define TINYLOG_DATETIME_FMTW TINYLOG_CRT_WIDE(TINYLOG_DATETIME_FMT)
 
+#if defined(TINYLOG_USE_SIMPLIFIED_CHINA)
+
 // 调试打印格式: 文件 main.cpp, 行 24, 函数 main()
-#define TINYLOG_DEBUG_PRINTF_FMT "文件 %s, 行 %u, 函数 %s"
-#define TINYLOG_DEBUG_PRINTF_FMTW L"文件 %ls, 行 %u, 函数 %ls"
+#   define TINYLOG_DEBUG_PRINTF_FMT     "文件 %s, 行 %u, 函数 %s\n"
+#   define TINYLOG_DEBUG_PRINTF_FMTW    L"文件 %ls, 行 %u, 函数 %ls\n"
 
 // 日志级别
-#define TINYLOG_LEVEL_TRACE "跟踪"
+#   define TINYLOG_LEVEL_TRACE  "跟踪"
+#   define TINYLOG_LEVEL_DEBUG  "调试"
+#   define TINYLOG_LEVEL_INFO   "信息"
+#   define TINYLOG_LEVEL_WARN   "警告"
+#   define TINYLOG_LEVEL_ERROR  "错误"
+#   define TINYLOG_LEVEL_FATAL  "严重"
+#   define TINYLOG_LEVEL_UNKOWN "未知"
+
+#else
+
+// 调试打印格式: 文件 main.cpp, 行 24, 函数 main()
+#   define TINYLOG_DEBUG_PRINTF_FMT     "file %s, line %u, func %s\n"
+#   define TINYLOG_DEBUG_PRINTF_FMTW    L"file %ls, line %u, func %ls\n"
+
+// 日志级别
+#   define TINYLOG_LEVEL_TRACE  "TRACE"
+#   define TINYLOG_LEVEL_DEBUG  "DEBUG"
+#   define TINYLOG_LEVEL_INFO   "INFO"
+#   define TINYLOG_LEVEL_WARN   "WARN"
+#   define TINYLOG_LEVEL_ERROR  "ERROR"
+#   define TINYLOG_LEVEL_FATAL  "FATAL"
+#   define TINYLOG_LEVEL_UNKOWN "UNKNOWN"
+
+#endif // TINYLOG_USE_SIMPLIFIED_CHINA
+
 #define TINYLOG_LEVEL_TRACEW TINYLOG_CRT_WIDE(TINYLOG_LEVEL_TRACE)
-
-#define TINYLOG_LEVEL_DEBUG "调试"
 #define TINYLOG_LEVEL_DEBUGW TINYLOG_CRT_WIDE(TINYLOG_LEVEL_DEBUG)
-
-#define TINYLOG_LEVEL_INFO "信息"
 #define TINYLOG_LEVEL_INFOW TINYLOG_CRT_WIDE(TINYLOG_LEVEL_INFO)
-
-#define TINYLOG_LEVEL_WARN "警告"
 #define TINYLOG_LEVEL_WARNW TINYLOG_CRT_WIDE(TINYLOG_LEVEL_WARN)
-
-#define TINYLOG_LEVEL_ERROR "错误"
 #define TINYLOG_LEVEL_ERRORW TINYLOG_CRT_WIDE(TINYLOG_LEVEL_ERROR)
-
-#define TINYLOG_LEVEL_FATAL "严重"
 #define TINYLOG_LEVEL_FATALW TINYLOG_CRT_WIDE(TINYLOG_LEVEL_FATAL)
-
-#define TINYLOG_LEVEL_UNKOWN "未知"
 #define TINYLOG_LEVEL_UNKOWNW TINYLOG_CRT_WIDE(TINYLOG_LEVEL_UNKOWN)
 
 #ifdef NDEBUG
 
-#   define lprintf(lvl, fmt, ...) \
-    ::tinylog::logger::lformat<char>(lvl, fmt, ##__VA_ARGS__)
+#   define lprintf(lvl, fmt, ...) ::tinylog::logger::consume(lvl) \
+    && (::tinylog::detail::lprintf_impl(lvl))(fmt, ##__VA_ARGS__)
 
-#   define lwprintf(lvl, fmt, ...) \
-    ::tinylog::logger::lformat<wchar_t>(lvl, fmt, ##__VA_ARGS__)
+#   define lwprintf(lvl, fmt, ...) ::tinylog::logger::consume(lvl) \
+    && (::tinylog::detail::lwprintf_impl(lvl))(fmt, ##__VA_ARGS__)
 
-#   define lout(lvl) for (::tinylog::detail::olstream olstrm(lvl) \
-        ; olstrm; olstrm.close()) olstrm
+#   define lout(lvl) ::tinylog::logger::consume(lvl) \
+    && ::tinylog::detail::olstream(lvl)
 
-#   define wlout(lvl) \
-    for (::tinylog::detail::wolstream wolstrm(lvl) \
-        ; wolstrm; wolstrm.close()) wolstrm
+#   define wlout(lvl) ::tinylog::logger::conume(lvl) \
+    && ::tinylog::detail::wolstream(lvl)
 
 #else
 
-#   define lprintf(lvl, fmt, ...) \
-    do { \
-        ::tinylog::detail::debug_holder<char> dh = \
-        { TINYLOG_DEBUG_PRINTF_FMT, __FILE__, __LINE__, __FUNCTION__ }; \
-        ::tinylog::logger::lformat_d<char>(dh, lvl, fmt, ##__VA_ARGS__); \
-    } while (0)
+#   define lprintf(lvl, fmt, ...) ::tinylog::logger::consume(lvl) \
+    && (::tinylog::detail::lprintf_d_impl(lvl \
+        , __FILE__, __LINE__, __FUNCTION__)) \
+        (fmt, ##__VA_ARGS__)
 
-#   define lwprintf(lvl, fmt, ...) \
-    do { \
-        ::tinylog::detail::debug_holder<wchar_t> dh = \
-        { TINYLOG_DEBUG_PRINTF_FMTW \
+#   define lwprintf(lvl, fmt, ...) ::tinylog::logger::consume(lvl) \
+    && (::tinylog::detail::lwprintf_d_impl(lvl \
         , TINYLOG_CRT_WIDE(__FILE__), __LINE__ \
-        , ::tinylog::detail::a2w_holder(__FUNCTION__).c_str() }; \
-        ::tinylog::logger::lformat_d<wchar_t>(dh, lvl, fmt, ##__VA_ARGS__); \
-    } while (0)
+        , ::tinylog::a2w(__FUNCTION__))) \
+        (fmt, ##__VA_ARGS__)
 
-#   define lout(lvl) for (::tinylog::detail::olstream_d olstrm(lvl \
-            , __FILE__, __LINE__, __FUNCTION__) \
-        ; olstrm; olstrm.close()) olstrm
+#   define lout(lvl)  ::tinylog::logger::consume(lvl) \
+    && ::tinylog::detail::olstream_d(lvl \
+        , __FILE__, __LINE__, __FUNCTION__)
 
-#   define wlout(lvl) \
-    for (::tinylog::detail::wolstream_d wolstrm(lvl \
-            , TINYLOG_CRT_WIDE(__FILE__), __LINE__ \
-         , ::tinylog::detail::a2w_holder(__FUNCTION__).c_str()) \
-        ; wolstrm; wolstrm.close()) wolstrm
+#   define wlout(lvl) ::tinylog::logger::consume(lvl) \
+    && ::tinylog::detail::wolstream_d(lvl \
+        , TINYLOG_CRT_WIDE(__FILE__), __LINE__ \
+        , ::tinylog::a2w(__FUNCTION__))
 
 #endif  // NDEBUG
 
@@ -259,28 +290,8 @@ SOFTWARE.
 #define lout_f lout(::tinylog::fatal)
 #define wlout_f wlout(::tinylog::fatal)
 
-//--------------|
-// 用户可控制   |
-//--------------|
-
-// 使用单线程模式
-// #define TINYLOG_USE_SINGLE_THREAD 1
-
-// 禁止STL容器日志
-// #define TINYLOG_DISABLE_STL_LOGING 1
-
-// 禁止终端输出颜色
-// #define TINYLOG_DISABLE_CONSOLE_COLOR 1
-
 namespace tinylog
 {
-
-// 日志级别
-enum level : std::uint8_t
-{
-    trace, debug, info, warn, error, fatal
-};
-
 //////////////////////////////////////////////////////////////////////////////
 //
 // 辅助函数
@@ -288,6 +299,7 @@ enum level : std::uint8_t
 //////////////////////////////////////////////////////////////////////////////
 namespace detail
 {
+//
 // 实现 c++14 make_index_sequence
 //
 // @see https://github.com/hokein/Wiki/wiki/
@@ -301,7 +313,7 @@ template <size_t Index, size_t... Indices>
 struct indices_generator
 {
     using type = typename indices_generator<Index - 1
-        , Index - 1, Indices...>::type;
+                 , Index - 1, Indices...>::type;
 };
 
 template <size_t... Indices>
@@ -315,19 +327,44 @@ struct null_mutex
 {
     void lock() {}
     void unlock() {}
-    bool try_lock() { return true; }
+    bool try_lock()
+    {
+        return true;
+    }
 };
+
+// get current time seconds
+inline std::time_t curr_time()
+{
+    return std::time(nullptr);
+}
+
+// get current thread id
+inline std::size_t curr_thrd_id()
+{
+    auto get_thrd_id = []() -> std::size_t
+    {
+        // auto const curr_id = std::this_thread::get_id();
+        // auto gen = std::hash<std::thread::id>();
+        // return static_cast<std::size_t>(gen(curr_id));
+        static std::atomic_size_t id(0u);
+        ++id;
+        return id.load();
+    };
+
+    static thread_local std::size_t const thrd_id = get_thrd_id();
+    return thrd_id;
+}
 
 // 实现 strftime 格式化当前时间
 // 返回 std::basic_string<charT>
 template <class strftimeT, class charT>
 std::basic_string<charT>
-current_time(strftimeT strftime_cb, charT const* fmt)
+strftime_impl(strftimeT strftime_cb, charT const* fmt, std::time_t rawtime)
 {
     constexpr auto time_bufsize = 20;
     std::basic_string<charT> time_buffer(time_bufsize, '\0');
 
-    auto const rawtime = std::time(nullptr);
     struct tm timeinfo;
 
 #if defined(TINYLOG_WINDOWS_API)
@@ -337,7 +374,7 @@ current_time(strftimeT strftime_cb, charT const* fmt)
 #endif // TINYLOG_WINDOWS_API
 
     auto const n = strftime_cb(const_cast<charT*>(time_buffer.data())
-        , time_bufsize, fmt, &timeinfo);
+                               , time_bufsize, fmt, &timeinfo);
     time_buffer.resize(n);
 
     return time_buffer;
@@ -351,94 +388,98 @@ current_time(strftimeT strftime_cb, charT const* fmt)
 //
 inline void ensure_va_args_safe_A() {}
 template <class T, class... Args
-    , typename std::enable_if<!std::is_class<T>::value
-        && !std::is_same<typename std::remove_cv
-            <typename std::remove_pointer
-            <typename std::decay<T>::type>
-            ::type>::type, wchar_t>::value
-        , int>::type = 0>
-void ensure_va_args_safe_A(T const& , Args... args)
+          , typename std::enable_if<!std::is_class<T>::value
+                                    && !std::is_same
+                                    <typename std::remove_cv
+                                     <typename std::remove_pointer
+                                      <typename std::decay<T>::type
+                                       >::type>::type, wchar_t>::value
+                                    , int>::type = 0>
+void ensure_va_args_safe_A(T const&, Args... args)
 {
     ensure_va_args_safe_A(args...);
 }
 
 inline void ensure_va_args_safe_W() {}
 template <class T, class... Args
-    , typename std::enable_if<!std::is_class<T>::value
-        && !std::is_same<typename std::remove_cv
-            <typename std::remove_pointer
-            <typename std::decay<T>::type>
-            ::type>::type, char>::value
-        , int>::type = 0>
-void ensure_va_args_safe_W(T const& , Args... args)
+          , typename std::enable_if<!std::is_class<T>::value
+                                    && !std::is_same
+                                    <typename std::remove_cv
+                                     <typename std::remove_pointer
+                                      <typename std::decay<T>::type
+                                       >::type>::type, char>::value
+                                    , int>::type = 0>
+void ensure_va_args_safe_W(T const&, Args... args)
 {
     ensure_va_args_safe_W(args...);
 }
 
-// char to wchar_t
-struct a2w_holder
+//
+// s[w]printf 实现: 将可变参数格式化成字符串.
+//
+template <class charT>
+struct sprintf_constructor;
+
+template <>
+struct sprintf_constructor<char>
 {
-    a2w_holder(char const* s)
-    {
-        convert_from(s);
-    }
+    using char_type = char;
+    using string_t = std::basic_string<char_type>;
 
-    wchar_t const* c_str()
+    template <class... Args>
+    static void construct(string_t& s, string_t const& fmt, Args&&... args)
     {
-        return ws_.c_str();
-    }
+        ensure_va_args_safe_A(std::forward<Args>(args)...);
 
-private:
-    void convert_from(char const* s)
-    {
-        for (size_t len = BUFSIZ
-             ; len < (std::numeric_limits<size_t>::max)()
-             ; len += BUFSIZ)
+        for (int n = BUFSIZ; true; n += BUFSIZ)
         {
-            ws_.resize(len);
-
-#if defined(TINYLOG_WINDOWS_API)
-
-            size_t w_size = static_cast<size_t>(-1);
-            if (::mbstowcs_s(&w_size, const_cast<wchar_t*>(ws_.data())
-                , len, s, _TRUNCATE) != 0)
+            s.resize(n--);
+            auto r = std::snprintf(const_cast<char_type*>(s.data()), n
+                                   , fmt.c_str(), args...);
+            if (r < 0)
             {
-                break; // failed
+                // TODO: throw system_error
+                s.clear();
+                break;
             }
-
-#else
-
-            size_t w_size = ::mbstowcs(const_cast<wchar_t*>(ws_.data())
-                , s, len);
-
-#endif  // TINYLOG_WINDOWS_API
-
-            if (w_size == static_cast<size_t>(-1))
+            if (r < n)
             {
-                break; // failed
-            }
-            if (w_size < len)
-            {
-                ws_.resize(w_size);
+                s.resize(r);
                 break;
             }
         }
     }
-
-private:
-    std::wstring ws_;
 };
 
-// 持有调试信息
-template <class charT = char>
-struct debug_holder
+template <>
+struct sprintf_constructor<wchar_t>
 {
-    using string_t = std::basic_string<charT>;
+    using char_type = wchar_t;
+    using string_t = std::basic_string<char_type>;
 
-    string_t fmt;
-    string_t file;
-    size_t  line;
-    string_t func;
+    template <class... Args>
+    static void construct(string_t& s, string_t const& fmt, Args&&... args)
+    {
+        ensure_va_args_safe_W(std::forward<Args>(args)...);
+
+        for (int n = BUFSIZ; true; n += BUFSIZ)
+        {
+            s.resize(n--);
+            auto r = std::swprintf(const_cast<char_type*>(s.data()), n
+                                   , fmt.c_str(), args...);
+            if (r < 0)
+            {
+                // TODO: throw system_error
+                s.clear();
+                break;
+            }
+            if (r < n)
+            {
+                s.resize(r);
+                break;
+            }
+        }
+    }
 };
 
 // 获取文件大小
@@ -449,23 +490,25 @@ inline std::uintmax_t file_size(std::string const& filename)
     WIN32_FILE_ATTRIBUTE_DATA fad;
 
     if (!::GetFileAttributesExA(filename.c_str()
-        , ::GetFileExInfoStandard, &fad))
+                                , ::GetFileExInfoStandard, &fad))
     {
         throw std::system_error(::GetLastError()
-            , std::system_category(), "can't get file size");
+                                , std::system_category()
+                                , "can't get file size");
     }
 
     return (static_cast<std::uintmax_t>(fad.nFileSizeHigh)
-        << (sizeof(fad.nFileSizeLow) * 8)) + fad.nFileSizeLow;
+            << (sizeof(fad.nFileSizeLow) * 8)) + fad.nFileSizeLow;
 
 #else
 
     struct stat fn_stat;
     if (::stat(filename.c_str(), &fn_stat) != 0
-        || !S_ISREG(fn_stat.st_mode))
+            || !S_ISREG(fn_stat.st_mode))
     {
         throw std::system_error(errno
-            , std::system_category(), "can't get file size");
+                                , std::system_category()
+                                , "can't get file size");
     }
 
     return fn_stat.st_size;
@@ -475,15 +518,15 @@ inline std::uintmax_t file_size(std::string const& filename)
 
 // 文件重命名: 移动文件
 inline void file_rename(std::string const& old
-    , std::string const& now)
+                        , std::string const& now)
 {
 #if defined(TINYLOG_WINDOWS_API)
 
     if (!::MoveFileExA(old.c_str(), now.c_str()
-        , MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED))
+                       , MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED))
     {
         throw std::system_error(::GetLastError()
-            , std::system_category(), "move file failed");
+                                , std::system_category(), "move file failed");
     }
 
 #else
@@ -491,7 +534,7 @@ inline void file_rename(std::string const& old
     if (!::rename(old.c_str(), now.c_str()))
     {
         throw std::system_error(errno
-            , std::system_category(), "move file failed");
+                                , std::system_category(), "move file failed");
     }
 
 #endif
@@ -540,279 +583,550 @@ gen_title(std::basic_string<charT> const& tm_text, charT sep)
     return oss.str();
 }
 
+} // namespace detail
+
 //////////////////////////////////////////////////////////////////////////////
 //
-// 日志记录：
-//     格式化记录信息
+// 编码转换
 //
 //////////////////////////////////////////////////////////////////////////////
-template <class charT>
-class basic_record
+
+//
+// 不同类型编码字符串转换
+//
+template <typename = void, typename = void>
+struct code_converter;
+
+template <>
+struct code_converter<void>
 {
-public:
-    using char_type = charT;
+    template <class To, class From>
+    static void to_string(To& to, From const& from);
+};
+
+using u8string = std::basic_string<char>;
+
+template <>
+struct code_converter<u8string>
+{
+    template <class To, class From>
+    static void to_string(To& to, From const& from);
+};
+
+//
+// 特定编码字符串构建
+//
+namespace detail
+{
+
+template <class charT>
+struct ansi_constructor;
+
+template <>
+struct ansi_constructor<char>
+{
+    using char_type = char;
     using string_t = std::basic_string<char_type>;
 
-public:
-    // 日志格式标题:
-    // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    // +                                                          +
-    // +                   2018/05/20 15:14:23                    +
-    // +                                                          +
-    // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    static string_t title()
+    template <class charFT
+              , typename std::enable_if<std::is_same<charFT, char_type>::value
+                                        , int>::type = 0>
+    static void construct(string_t& to, std::basic_string<charFT> const& from)
     {
-        return detail::gen_title<char_type>(time(), TINYLOG_TITILE_CHAR);
+        to = from;
     }
 
-public:
-    // e.g. 2018/05/20 12:30:22 [信息] #49560 界面: 刷新磁盘
-    template <class... Args>
-    static string_t lformat(level lvl, char_type const* fmt, Args&& ...args)
+    template <class charFT
+              , typename std::enable_if<std::is_same<charFT, wchar_t>::value
+                                        , int>::type = 0>
+    static void construct(string_t& to, std::basic_string<charFT> const& from)
     {
-        return prefix(lvl) + TINYLOG_SEPARATOR
-            + message(fmt, std::forward<Args>(args)...);
-    }
-
-    // e.g. 文件 main.cpp, 行 24, 函数 main()
-    template <class... Args>
-    static string_t format(char_type const* fmt, Args&& ...args)
-    {
-        return message(fmt, std::forward<Args>(args)...);
-    }
-
-private:
-    // e.g. 2018/05/20 19:30:27 [错误] #2076
-    static string_t prefix(level lvl)
-    {
-        auto const sep = TINYLOG_SEPARATOR;
-        return time()
-            + sep + level_text(lvl)
-            + sep + thread_id();
-    }
-
-    template <class... Args>
-    static string_t message(char_type const* fmt, Args&& ...args)
-    {
-        ensure_va_args_safe_A(std::forward<Args>(args)...);
-
-        string_t msg;
-        for (int n = BUFSIZ; true; n += BUFSIZ)
+        for (std::size_t len = BUFSIZ
+                               ; len < (std::numeric_limits<std::size_t>::max)()
+                ; len += BUFSIZ)
         {
-            msg.resize(n--);
-            auto r = std::snprintf(const_cast<char_type*>(msg.data()), n
-                , fmt, args...);
-            if (r < 0)
+            to.resize(len);
+#if defined(TINYLOG_WINDOWS_API)
+            std::size_t to_size = static_cast<std::size_t>(-1);
+            if (::wcstombs_s(&to_size, const_cast<char_type*>(to.data())
+                             , len, from.c_str(), _TRUNCATE) != 0)
             {
-                // TODO: throw system_error
-                msg.clear();
-                break;
+                break; // failed
             }
-            if (r < n)
+#else
+            std::size_t to_size = ::wcstombs(const_cast<char_type*>(to.data())
+                                             , from.c_str(), len);
+#endif  // TINYLOG_WINDOWS_API
+            if (to_size == static_cast<size_t>(-1))
             {
-                msg.resize(r);
+                break; // failed
+            }
+            if (to_size < len)
+            {
+                to.resize(to_size);
                 break;
             }
         }
-
-        constexpr auto newline_sep = '\n';
-        if (!msg.empty() && *msg.rbegin() != newline_sep)
-        {
-            msg.push_back(newline_sep);
-        }
-        return msg;
-    }
-
-private:
-    static string_t time()
-    {
-        return current_time(std::strftime, TINYLOG_DATETIME_FMT);
-    }
-
-    static string_t level_text(level lvl)
-    {
-        string_t msg;
-        switch (lvl)
-        {
-        case level::trace:
-            msg = TINYLOG_LEVEL_TRACE;
-            break;
-        case level::debug:
-            msg = TINYLOG_LEVEL_DEBUG;
-            break;
-        case level::info:
-            msg = TINYLOG_LEVEL_INFO;
-            break;
-        case level::warn:
-            msg = TINYLOG_LEVEL_WARN;
-            break;
-        case level::error:
-            msg = TINYLOG_LEVEL_ERROR;
-            break;
-        case level::fatal:
-            msg = TINYLOG_LEVEL_FATAL;
-            break;
-        default:
-            msg = TINYLOG_LEVEL_UNKOWN;
-            break;
-        }
-        return "[" + msg + "]";
-    }
-
-    static string_t thread_id()
-    {
-        auto get_thrd_id = []() -> string_t
-        {
-            auto const curr_id = std::this_thread::get_id();
-            std::basic_ostringstream<char_type> oss;
-            if (curr_id == std::thread::id())
-            {
-                oss << "non-executing";
-                return oss.str();
-            }
-            oss << curr_id;
-            return oss.str();
-        };
-
-        static thread_local string_t const thrd_id = '#' + get_thrd_id();
-        return thrd_id;
     }
 };
 
 template <>
-class basic_record<wchar_t>
+struct ansi_constructor<wchar_t>
 {
-public:
     using char_type = wchar_t;
     using string_t = std::basic_string<char_type>;
 
-public:
-    // 日志格式标题:
-    // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    // +                                                          +
-    // +                   2018/05/20 15:14:23                    +
-    // +                                                          +
-    // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    static string_t title()
+    template <class charFT
+              , typename std::enable_if<std::is_same<charFT, char_type>::value
+                                        , int>::type = 0>
+    static void construct(string_t& to, std::basic_string<charFT> const& from)
     {
-        return detail::gen_title<char_type>(time(), TINYLOG_TITILE_CHARW);
+        to = from;
     }
 
-public:
-    // e.g. 2018/05/20 12:30:22 [信息] #49560 界面: 刷新磁盘
-    template <class... Args>
-    static string_t lformat(level lvl, char_type const* fmt, Args&& ...args)
+    template <class charFT
+              , typename std::enable_if<std::is_same<charFT, char>::value
+                                        , int>::type = 0>
+    static void construct(string_t& to, std::basic_string<charFT> const& from)
     {
-        return prefix(lvl) + TINYLOG_SEPARATORW
-            + message(fmt, std::forward<Args>(args)...);
-    }
-
-    // e.g. 文件 main.cpp, 行 24, 函数 main()
-    template <class... Args>
-    static string_t format(char_type const* fmt, Args&& ...args)
-    {
-        return message(fmt, std::forward<Args>(args)...);
-    }
-
-private:
-    // e.g. 2018/05/20 19:30:27 [错误] #2076
-    static string_t prefix(level lvl)
-    {
-        auto const sep = TINYLOG_SEPARATORW;
-        return time()
-            + sep + level_text(lvl)
-            + sep + thread_id();
-    }
-
-    template <class... Args>
-    static string_t message(char_type const* fmt, Args&& ...args)
-    {
-        ensure_va_args_safe_W(std::forward<Args>(args)...);
-
-        string_t msg;
-        for (int n = BUFSIZ; true; n += BUFSIZ)
+        for (std::size_t len = BUFSIZ
+                               ; len < (std::numeric_limits<std::size_t>::max)()
+                ; len += BUFSIZ)
         {
-            msg.resize(n--);
-            auto r = std::swprintf(const_cast<char_type*>(msg.data()), n
-                , fmt, args...);
-            if (r < 0)
+            to.resize(len);
+#if defined(TINYLOG_WINDOWS_API)
+            std::size_t to_size = static_cast<std::size_t>(-1);
+            if (::mbstowcs_s(&to_size, const_cast<char_type*>(to.data())
+                             , len, from.c_str(), _TRUNCATE) != 0)
             {
-                // TODO: throw system_error
-                msg.clear();
-                break;
+                break; // failed
             }
-            if (r < n)
+#else
+            std::size_t to_size = ::mbstowcs(const_cast<char_type*>(to.data())
+                                             , from.c_str(), len);
+#endif  // TINYLOG_WINDOWS_API
+            if (to_size == static_cast<size_t>(-1))
             {
-                msg.resize(r);
+                break; // failed
+            }
+            if (to_size < len)
+            {
+                to.resize(to_size);
                 break;
             }
         }
-
-        constexpr auto newline_sep = L'\n';
-        if (!msg.empty() && *msg.rbegin() != newline_sep)
-        {
-            msg.push_back(newline_sep);
-        }
-        return msg;
-    }
-
-private:
-    static string_t time()
-    {
-        return current_time(std::wcsftime, TINYLOG_DATETIME_FMTW);
-    }
-
-    static string_t level_text(level lvl)
-    {
-        string_t msg;
-        switch (lvl)
-        {
-        case level::trace:
-            msg = TINYLOG_LEVEL_TRACEW;
-            break;
-        case level::debug:
-            msg = TINYLOG_LEVEL_DEBUGW;
-            break;
-        case level::info:
-            msg = TINYLOG_LEVEL_INFOW;
-            break;
-        case level::warn:
-            msg = TINYLOG_LEVEL_WARNW;
-            break;
-        case level::error:
-            msg = TINYLOG_LEVEL_ERRORW;
-            break;
-        case level::fatal:
-            msg = TINYLOG_LEVEL_FATALW;
-            break;
-        default:
-            msg = TINYLOG_LEVEL_UNKOWNW;
-            break;
-        }
-        return L"[" + msg + L"]";
-    }
-
-    static string_t thread_id()
-    {
-        auto get_thrd_id = []() -> string_t
-        {
-            auto const curr_id = std::this_thread::get_id();
-            std::basic_ostringstream<char_type> oss;
-            if (curr_id == std::thread::id())
-            {
-                oss << L"non-executing";
-                return oss.str();
-            }
-            oss << curr_id;
-            return oss.str();
-        };
-
-        static thread_local string_t const thrd_id = L'#' + get_thrd_id();
-        return thrd_id;
     }
 };
 
-}  // namesapce detail
+template <class charT>
+struct utf8_constructor;
+
+template <>
+struct utf8_constructor<char>
+{
+    using char_type = char;
+    using string_t = std::basic_string<char_type>;
+
+    template <class charFT
+              , typename std::enable_if<std::is_same<charFT, char_type>::value
+                                        , int>::type = 0>
+    static void construct(string_t& to, std::basic_string<charFT> const& from)
+    {
+        using wide_type = wchar_t;
+        // ansi --> wide
+        std::basic_string<wide_type> ws;
+        code_converter<>::to_string(ws, from);
+        // wide --> utf8
+        construct(to, ws);
+    }
+
+    template <class charFT
+              , typename std::enable_if<std::is_same<charFT, wchar_t>::value
+                                        , int>::type = 0>
+    static void construct(string_t& to, std::basic_string<charFT> const& from)
+    {
+        // wide --> utf8
+        std::wstring_convert<std::codecvt_utf8<charFT>, charFT> cv;
+        to = cv.to_bytes(from);
+    }
+};
+
+template <>
+struct utf8_constructor<wchar_t>
+{
+    using char_type = wchar_t;
+    using string_t = std::basic_string<char_type>;
+
+    template <class charFT
+              , typename std::enable_if<std::is_same<charFT, char_type>::value
+                                        , int>::type = 0>
+    static void construct(string_t& to, std::basic_string<charFT> const& from)
+    {
+        to = from;
+    }
+
+    template <class charFT
+              , typename std::enable_if<std::is_same<charFT, char>::value
+                                        , int>::type = 0>
+    static void construct(string_t& to, std::basic_string<charFT> const& from)
+    {
+        using wide_type = char_type;
+        // u8 --> wide
+        std::wstring_convert<std::codecvt_utf8<wide_type>, wide_type> cv;
+        to = cv.from_bytes(from);
+    }
+};
+
+}  // namespace  detail
+
+//
+// implement
+//
+template <class To, class From>
+void code_converter<void>::to_string(To& to, From const& from)
+{
+    using char_type = typename To::value_type;
+    detail::ansi_constructor<char_type>::construct(to, from);
+}
+
+template <class To, class From>
+void code_converter<u8string>::to_string(To& to, From const& from)
+{
+    using char_type = typename To::value_type;
+    detail::utf8_constructor<char_type>::construct(to, from);
+}
+
+// char to wchar_t
+inline std::wstring a2w(std::string const& s)
+{
+    std::wstring ws;
+    code_converter<>::to_string(ws, s);
+    return ws;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// 日志级别
+//
+//////////////////////////////////////////////////////////////////////////////
+
+enum level : std::uint8_t
+{
+    trace, debug, info, warn, error, fatal
+};
+
+template <class charT>
+std::basic_string<charT> to_string(level lvl);
+
+template <>
+std::basic_string<char> to_string(level lvl)
+{
+    std::basic_string<char> text;
+    switch (lvl)
+    {
+    case level::trace:
+        text = TINYLOG_LEVEL_TRACE;
+        break;
+    case level::debug:
+        text = TINYLOG_LEVEL_DEBUG;
+        break;
+    case level::info:
+        text = TINYLOG_LEVEL_INFO;
+        break;
+    case level::warn:
+        text = TINYLOG_LEVEL_WARN;
+        break;
+    case level::error:
+        text = TINYLOG_LEVEL_ERROR;
+        break;
+    case level::fatal:
+        text = TINYLOG_LEVEL_FATAL;
+        break;
+    default:
+        text = TINYLOG_LEVEL_UNKOWN;
+        break;
+    }
+    return  text;
+}
+
+template <>
+std::basic_string<wchar_t> to_string(level lvl)
+{
+    std::basic_string<wchar_t> text;
+    switch (lvl)
+    {
+    case level::trace:
+        text = TINYLOG_LEVEL_TRACEW;
+        break;
+    case level::debug:
+        text = TINYLOG_LEVEL_DEBUGW;
+        break;
+    case level::info:
+        text = TINYLOG_LEVEL_INFOW;
+        break;
+    case level::warn:
+        text = TINYLOG_LEVEL_WARNW;
+        break;
+    case level::error:
+        text = TINYLOG_LEVEL_ERRORW;
+        break;
+    case level::fatal:
+        text = TINYLOG_LEVEL_FATALW;
+        break;
+    default:
+        text = TINYLOG_LEVEL_UNKOWNW;
+        break;
+    }
+    return text;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// 记录结构
+//
+//////////////////////////////////////////////////////////////////////////////
+
+template <class charT>
+struct basic_record
+{
+    using self      = basic_record<charT>;
+    using char_type = charT;
+    using string_t  = std::basic_string<char_type>;
+
+    explicit basic_record(std::time_t t, level l, std::uintmax_t thrd_id
+    , string_t const& m) : tv_sec(t), lvl(l), id(thrd_id), message(m)
+    {}
+
+    explicit basic_record(level l, string_t const& m)
+        : self(detail::curr_time(), l, detail::curr_thrd_id(), m)
+    {}
+
+    explicit basic_record(level l)
+        : tv_sec(detail::curr_time()), lvl(l), id(detail::curr_thrd_id())
+    {}
+
+    std::time_t     tv_sec;
+    level           lvl;
+    std::uintmax_t  id;
+    string_t        message;
+};
+
+using record  = basic_record<char>;
+using wrecord = basic_record<wchar_t>;
+
+template <class charT>
+struct basic_record_d : public basic_record<charT>
+{
+    using base      = basic_record<charT>;
+    using self      = basic_record_d<charT>;
+    using char_type = typename base::char_type;
+    using string_t  = typename base::string_t;
+
+    explicit basic_record_d(std::time_t t, level l
+                            , std::uintmax_t thrd_id, string_t const& m
+                            , string_t const& fn, std::size_t ln
+                            , string_t const& fun)
+        : base(t, l, thrd_id, m), file(fn), line(ln), func(fun)
+    {}
+
+    explicit basic_record_d(level l, string_t const& m
+                            , string_t const& fn, std::size_t ln
+                            , string_t const& fun)
+        : base(l, m), file(fn), line(ln), func(fun)
+    {}
+
+    explicit basic_record_d(level l
+                            , string_t const& fn, std::size_t ln
+                            , string_t const& fun)
+        : base(l), file(fn), line(ln), func(fun)
+    {}
+
+    string_t        file;
+    std::size_t     line;
+    string_t        func;
+};
+
+using record_d = basic_record_d<char>;
+using wrecord_d = basic_record_d<wchar_t>;
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// 构建布局：
+//     序列化记录结构
+//
+//////////////////////////////////////////////////////////////////////////////
+namespace detail
+{
+
+template <class deriveT, class charT>
+struct layout_constructor_base
+{
+    using derive    = deriveT;
+    using char_type = charT;
+    using string_t  = std::basic_string<char_type>;
+    using record    = basic_record<char_type>;
+    using record_d  = basic_record_d<char_type>;
+
+    static void construct(string_t& s, record const& r)
+    {
+        derive::gen_record_msg(s, r);
+    }
+
+    static void construct(string_t& s, record_d const& r)
+    {
+        derive::gen_record_msg(s, r);
+        derive::append_debug_msg(s, r);
+    }
+
+protected:
+    // time [level] #id message
+    static void gen_record_msg(string_t& s, record const& p);
+
+    // file line func
+    static void append_debug_msg(string_t& s, record_d const& p);
+
+protected:
+    static void end_with(string_t& s, char_type delimiter)
+    {
+        if (s.empty())
+        {
+            s.push_back(delimiter);
+            return ;
+        }
+        if (*s.crbegin() != delimiter)
+        {
+            s.push_back(delimiter);
+        }
+    }
+};
+
+template <class charT>
+struct layout_constructor;
+
+template <>
+struct layout_constructor<char>
+    : public layout_constructor_base<layout_constructor<char>, char>
+{
+    friend struct layout_constructor_base<layout_constructor<char>, char>;
+
+    using base      = layout_constructor_base<layout_constructor<char>, char>;
+    using char_type = typename base::char_type;
+    using string_t  = typename base::string_t;
+    using record    = typename base::record;
+    using record_d  = typename base::record_d;
+
+    static constexpr auto sep = TINYLOG_SEPARATOR;
+    static constexpr auto lf  = TINYLOG_LF;
+
+protected:
+    // time [level] #id message
+    static void gen_record_msg(string_t& s, record const& r)
+    {
+        s = format_time(r) + sep + "[" + to_string<char_type>(r.lvl) + "]"
+            + sep + "#" + std::to_string(r.id)
+            + sep + r.message;
+        end_with(s, lf);
+    }
+
+    // file line func
+    static void append_debug_msg(string_t& s, record_d const& r)
+    {
+        string_t debug_info;
+        sprintf_constructor<char_type>::construct(debug_info
+                , TINYLOG_DEBUG_PRINTF_FMT
+                , r.file.c_str(), r.line, r.func.c_str());
+        end_with(debug_info, lf);
+        s += debug_info;
+    }
+
+private:
+    static string_t format_time(record const& r)
+    {
+        return strftime_impl(std::strftime, TINYLOG_DATETIME_FMT, r.tv_sec);
+    }
+};
+
+template <>
+struct layout_constructor<wchar_t>
+    : public layout_constructor_base<layout_constructor<wchar_t>, wchar_t>
+{
+    friend struct layout_constructor_base<layout_constructor<wchar_t>, wchar_t>;
+
+    using base = layout_constructor_base<layout_constructor<wchar_t>, wchar_t>;
+    using char_type = typename base::char_type;
+    using string_t  = typename base::string_t;
+    using record    = typename base::record;
+    using record_d  = typename base::record_d;
+
+    static constexpr auto sep = TINYLOG_SEPARATORW;
+    static constexpr auto lf  = TINYLOG_LFW;
+
+protected:
+    // time [level] #id message
+    static void gen_record_msg(string_t& s, record const& r)
+    {
+        s = format_time(r) + sep + L"[" + to_string<char_type>(r.lvl) + L"]"
+            + sep + L"#" + std::to_wstring(r.id)
+            + sep + r.message;
+        end_with(s, lf);
+    }
+
+    // file line func
+    static void append_debug_msg(string_t& s, record_d const& r)
+    {
+        string_t debug_info;
+        sprintf_constructor<char_type>::construct(debug_info
+                , TINYLOG_DEBUG_PRINTF_FMTW
+                , r.file.c_str(), r.line, r.func.c_str());
+        end_with(debug_info, lf);
+        s += debug_info;
+    }
+
+private:
+    static string_t format_time(record const& r)
+    {
+        return strftime_impl(std::wcsftime, TINYLOG_DATETIME_FMTW, r.tv_sec);
+    }
+};
+
+}  // namespace detail
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// 格式化器：
+//     构建布局, 将布局生成消息.
+//
+//////////////////////////////////////////////////////////////////////////////
+
+//
+// 默认布局: 用户可定制, 实现不同布局.
+//
+// @note this is default layout.
+//
+struct default_layout
+{
+    template <class stringT, class recordT>
+    static void to_string(stringT& s, recordT const& r)
+    {
+        using char_type = typename stringT::value_type;
+        detail::layout_constructor<char_type>::construct(s, r);
+    }
+};
+
+//
+// 格式化工具: 提供格式化方法，利用布局将记录序列化.
+//
+template <class layoutT = default_layout>
+struct formatter
+{
+    template <class recordT>
+    static typename recordT::string_t format(recordT const& r)
+    {
+        typename recordT::string_t s;
+        layoutT::to_string(s, r);
+        return s;
+    }
+};
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -832,20 +1146,20 @@ using mutex_t = std::mutex;
 
 //
 // 抽象基类:
-//     使用者可以继承该模板实现，实现属于自己的槽。
+//     使用者可以继承 basic_sink<> 实现，实现属于自己的槽。
 //
 // @attention 类中的纯虚函数一定要实现。
 //
 template <class charT>
-class basic_sink
+class basic_sink_base
 {
 public:
     using char_type = charT;
-    using string_t = std::basic_string<char_type>;
+    using string_t  = std::basic_string<char_type>;
+
+    virtual ~basic_sink_base() = default;
 
 public:
-    virtual ~basic_sink() = default;
-
     explicit operator bool()
     {
         return is_open();
@@ -856,49 +1170,71 @@ public:
         return !is_open();
     }
 
-public:
     // 是否打开准备好接收数据
     virtual bool is_open() = 0;
 
-    // 消费日志消息
-    void consume(level lvl, string_t const& msg)
-    {
-        string_t msg_ex(msg);
-        before_consume(lvl, msg_ex);
+    // 消费数据
+    virtual void consume(basic_record<char_type> const& r) = 0;
+    virtual void consume(basic_record_d<char_type> const& r) = 0;
+};
 
+template <class charT, class layoutT = default_layout
+          , class formatterT = formatter<layoutT>>
+class basic_sink : public basic_sink_base<charT>
+{
+public:
+    using base      = basic_sink_base<charT>;
+    using char_type = typename base::char_type;
+    using string_t  = typename base::string_t;
+
+    void consume(basic_record<char_type> const& r) final
+    {
+        auto msg = formatterT::format(r);
+        write(r.lvl, msg);
+    }
+
+    void consume(basic_record_d<char_type> const& r) final
+    {
+        auto msg = formatterT::format(r);
+        write(r.lvl, msg);
+    }
+
+protected:
+    virtual void write(level lvl, string_t& msg) final
+    {
+        before_write(lvl, msg);
         // 保护中...
         {
             std::lock_guard<mutex_t> lock(mtx_);
 
-            before_consuming(lvl, msg_ex);
-            consuming(lvl, msg_ex);
-            after_consuming(lvl, msg_ex);
+            before_writing(lvl, msg);
+            writing(lvl, msg);
+            after_writing(lvl, msg);
         }
-
-        after_consume(lvl, msg_ex);
+        after_write(lvl, msg);
     }
 
 protected:
     // 在输出数据之前可能需要对数据进行转换处理
-    virtual void before_consume(level lvl, string_t& msg)
+    virtual void before_write(level lvl, string_t& msg)
     {
     }
 
-    // 消费日志消息：before_consuming / consuming / after_consuming 互斥中
+    // 消费日志消息：before_writing / writing / after_writing 互斥中
     //     不要在这里做太多耗时性作业
-    //     尽量把工作转移到 before_consume / after_consume
-    virtual void before_consuming(level lvl, string_t& msg)
+    //     尽量把工作转移到 before_write / after_write
+    virtual void before_writing(level lvl, string_t& msg)
     {
     }
 
-    virtual void consuming(level lvl, string_t& msg) = 0;
+    virtual void writing(level lvl, string_t& msg) = 0;
 
-    virtual void after_consuming(level lvl, string_t& msg)
+    virtual void after_writing(level lvl, string_t& msg)
     {
     }
 
     // 在输出数据之后做一些遗后工作
-    virtual void after_consume(level lvl, string_t& msg)
+    virtual void after_write(level lvl, string_t& msg)
     {
     }
 
@@ -909,8 +1245,9 @@ private:
 // 终端槽
 #if defined(TINYLOG_DISABLE_CONSOLE_COLOR)
 
-template <class charT>
-struct basic_console_sink_base : public basic_sink<charT>
+template <class charT, class layoutT = default_layout
+          , class formatterT = formatter<layoutT>>
+struct basic_console_sink_base : public basic_sink<charT, layoutT, formatterT>
 {
     virtual bool is_open()
     {
@@ -920,19 +1257,20 @@ struct basic_console_sink_base : public basic_sink<charT>
 
 #elif defined(TINYLOG_WINDOWS_API)
 
-template <class charT>
-class basic_console_sink_base : public basic_sink<charT>
+template <class charT, class layoutT = default_layout
+          , class formatterT = formatter<layoutT>>
+class basic_console_sink_base : public basic_sink<charT, layoutT, formatterT>
 {
 public:
     using color_t = std::pair<WORD, WORD>; // <fore_color, back_color>
 
-    static constexpr auto color_bold = FOREGROUND_INTENSITY;
-    static constexpr auto color_white = FOREGROUND_RED
-        | FOREGROUND_GREEN | FOREGROUND_BLUE;
-    static constexpr auto color_cyan = FOREGROUND_GREEN | FOREGROUND_BLUE;
-    static constexpr auto color_green = FOREGROUND_GREEN;
-    static constexpr auto color_red = FOREGROUND_RED;
-    static constexpr auto color_yellow = FOREGROUND_RED | FOREGROUND_GREEN;
+    static constexpr auto color_bold    = FOREGROUND_INTENSITY;
+    static constexpr auto color_white   = FOREGROUND_RED
+                                          | FOREGROUND_GREEN | FOREGROUND_BLUE;
+    static constexpr auto color_cyan    = FOREGROUND_GREEN | FOREGROUND_BLUE;
+    static constexpr auto color_green   = FOREGROUND_GREEN;
+    static constexpr auto color_red     = FOREGROUND_RED;
+    static constexpr auto color_yellow  = FOREGROUND_RED | FOREGROUND_GREEN;
 
 public:
     basic_console_sink_base()
@@ -951,14 +1289,14 @@ public:
     }
 
 protected:
-    virtual void before_consuming(level lvl, string_t& msg)
+    virtual void before_writing(level lvl, string_t& msg)
     {
         auto color = level_color(lvl);
         orig_color_ = set_console_attribs(std::make_pair(color
-            , orig_color_.second));
+                                          , orig_color_.second));
     }
 
-    virtual void after_consuming(level lvl, string_t& msg)
+    virtual void after_writing(level lvl, string_t& msg)
     {
         set_console_attribs(orig_color_);
     }
@@ -994,7 +1332,9 @@ private:
 
         WORD bk_color = orig_buffer_info.wAttributes;
         bk_color &= static_cast<WORD>(~(FOREGROUND_RED
-            | FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY));
+                                        | FOREGROUND_GREEN
+                                        | FOREGROUND_BLUE
+                                        | FOREGROUND_INTENSITY));
 
         ::SetConsoleTextAttribute(out_handle_, color.first | color.second);
         return  std::make_pair(orig_buffer_info.wAttributes, bk_color);
@@ -1007,49 +1347,46 @@ private:
 
 #else  // TINYLOG_POSIX_API
 
-namespace posix
+namespace detail
 {
 
 template <class charT>
-struct color
-{
-    using char_type = charT;
-    using string_t = std::basic_string<char_type>;
+struct level_color;
 
-    static string_t close() { return "\033[0m"; }
-    static string_t trace() { return "\033[37m"; }  // white
-    static string_t debug() { return "\033[36m"; }  // cyan = green + blue
-    static string_t info()  { return "\033[32m"; }   // green
-    static string_t warn()  { return "\033[1;33m"; }  // bold + yellow
-    static string_t error() { return "\033[1;31m"; }  // bold + red
-    // bold + white + bk_red
-    static string_t fatal() { return "\033[1;37;41m"; }
+template <>
+struct level_color<char>
+{
+    static constexpr auto close = "\033[0m";
+    static constexpr auto trace = "\033[37m";       // white
+    static constexpr auto debug = "\033[36m";       // cyan = green + blue
+    static constexpr auto info  = "\033[32m";       // green
+    static constexpr auto warn  = "\033[1;33m";     // bold + yellow
+    static constexpr auto error = "\033[1;31m";     // bold + red
+    static constexpr auto fatal = "\033[1;37;41m";  // bold + white + bk_red
 };
 
 template <>
-struct color<wchar_t>
+struct level_color<wchar_t>
 {
-    using char_type = wchar_t;
-    using string_t = std::basic_string<char_type>;
-
-    static string_t close() { return L"\033[0m"; }
-    static string_t trace() { return L"\033[37m"; }  // white
-    static string_t debug() { return L"\033[36m"; } // cyan = green + blue
-    static string_t info()  { return L"\033[32m"; }  // green
-    static string_t warn()  { return L"\033[1;33m"; }  // bold + yellow
-    static string_t error() { return L"\033[1;31m"; }  // bold + red
-    // bold + white + bk_red
-    static string_t fatal() { return L"\033[1;37;41m"; }
+    static constexpr auto close = L"\033[0m";
+    static constexpr auto trace = L"\033[37m";      // white
+    static constexpr auto debug = L"\033[36m";      // cyan = green + blue
+    static constexpr auto info  = L"\033[32m";      // green
+    static constexpr auto warn  = L"\033[1;33m";    // bold + yellow
+    static constexpr auto error = L"\033[1;31m";    // bold + red
+    static constexpr auto fatal = L"\033[1;37;41m"; // bold + white + bk_red
 };
 
-}  // namespace posix
+}  // namespace detail
 
-template <class charT>
-class basic_console_sink_base : public basic_sink<charT>
+template <class charT, class layoutT = default_layout
+          , class formatterT = formatter<layoutT>
+          , class level_colorT = detail::level_color<charT>>
+class basic_console_sink_base : public basic_sink<charT, layoutT, formatterT>
 {
 public:
     using char_type = charT;
-    using string_t = std::basic_string<char_type>;
+    using string_t  = std::basic_string<char_type>;
 
     virtual bool is_open()
     {
@@ -1057,29 +1394,28 @@ public:
     }
 
 protected:
-    virtual void before_consuming(level lvl, string_t& msg)
+    virtual void before_writing(level lvl, string_t& msg)
     {
-        msg = level_color(lvl) + msg + posix::color<char_type>::close();
+        msg = level_color(lvl) + msg + level_colorT::close;
     }
 
 private:
     string_t level_color(level lvl)
     {
-        using namespace posix;
         switch (lvl)
         {
         case level::trace:
-            return color<char_type>::trace();
+            return level_colorT::trace;
         case level::debug:
-            return color<char_type>::debug();
+            return level_colorT::debug;
         case level::info:
-            return color<char_type>::info();
+            return level_colorT::info;
         case level::warn:
-            return color<char_type>::warn();
+            return level_colorT::warn;
         case level::error:
-            return color<char_type>::error();
+            return level_colorT::error;
         case level::fatal:
-            return color<char_type>::fatal();
+            return level_colorT::fatal;
         default:
             break;
         }
@@ -1089,13 +1425,14 @@ private:
 
 #endif  // TINYLOG_DISABLE_CONSOLE_COLOR
 
-template <class charT>
-class basic_console_sink : public basic_console_sink_base<charT>
+template <class charT, class layoutT = default_layout
+          , class formatterT = formatter<layoutT>>
+class basic_console_sink : public basic_console_sink_base<charT, layoutT, formatterT>
 {
 public:
-    using base = basic_console_sink_base<charT>;
+    using base      = basic_console_sink_base<charT, layoutT, formatterT>;
     using char_type = typename base::char_type;
-    using string_t = typename base::string_t;
+    using string_t  = typename base::string_t;
 
 public:
     basic_console_sink(std::locale const& loc = std::locale(""))
@@ -1104,16 +1441,22 @@ public:
     }
 
 protected:
-    virtual void consuming(level lvl, string_t& msg)
+    virtual void writing(level lvl, string_t& msg)
     {
         std::clog.write(msg.data(), static_cast<std::streamsize>(msg.size()));
         std::clog.flush();
     }
 };
 
-template <>
-class basic_console_sink<wchar_t> : public basic_console_sink_base<wchar_t>
+template <class layoutT, class formatterT>
+class basic_console_sink<wchar_t, layoutT, formatterT>
+    : public basic_console_sink_base<wchar_t, layoutT, formatterT>
 {
+public:
+    using base      = basic_console_sink_base<wchar_t, layoutT, formatterT>;
+    using char_type = typename base::char_type;
+    using string_t  = typename base::string_t;
+
 public:
     basic_console_sink(std::locale const& loc = std::locale(""))
     {
@@ -1121,24 +1464,30 @@ public:
     }
 
 protected:
-    virtual void consuming(level lvl, string_t& msg)
+    virtual void writing(level lvl, string_t& msg)
     {
         std::wclog.write(msg.data(), msg.size());
         std::wclog.flush();
     }
 };
 
-using console_sink = basic_console_sink<char>;
-using wconsole_sink = basic_console_sink<wchar_t>;
+template <class layoutT = default_layout
+          , class formatterT = formatter<layoutT>>
+using console_sink  = basic_console_sink<char, layoutT, formatterT>;
+
+template <class layoutT = default_layout
+          , class formatterT = formatter<layoutT>>
+using wconsole_sink = basic_console_sink<wchar_t, layoutT, formatterT>;
 
 // 文件槽
-template <class charT>
-class basic_file_sink : public basic_sink<charT>
+template <class charT, class layoutT = default_layout
+          , class formatterT = formatter<layoutT>>
+class basic_file_sink : public basic_sink<charT, layoutT, formatterT>
 {
 public:
-    using base = basic_sink<charT>;
+    using base      = basic_sink<charT, layoutT, formatterT>;
     using char_type = typename base::char_type;
-    using string_t = typename base::string_t;
+    using string_t  = typename base::string_t;
 
     static constexpr std::uintmax_t default_max_file_size
         = 10 * 1024 * 1024;  // 10 MB
@@ -1147,9 +1496,11 @@ public:
 
 public:
     explicit basic_file_sink(char const* filename
-        , std::uintmax_t max_file_size = default_max_file_size
-        , std::ios_base::openmode mode = std::ios_base::app
-        , std::locale const& loc = std::locale(""))
+                             , std::uintmax_t max_file_size
+                             = default_max_file_size
+                               , std::ios_base::openmode mode
+                             = std::ios_base::app
+                               , std::locale const& loc = std::locale(""))
         : filename_(filename), max_file_size_(max_file_size)
         , ostrm_(filename, mode)
     {
@@ -1162,7 +1513,7 @@ public:
     }
 
 protected:
-    virtual void before_consuming(level lvl, string_t& msg)
+    virtual void before_writing(level lvl, string_t& msg)
     {
         std::uintmax_t const curr_file_size = ostrm_.tellp();
         if (curr_file_size + msg.size() < max_file_size_)
@@ -1172,15 +1523,20 @@ protected:
 
         ostrm_.close();
 
-        try {
-            detail::file_rename(filename_, filename_ + ".bak");
-        } catch (...) { /* 吞下苦果，避免应用异常退出。*/ }
+        try
+        {
+            ::tinylog::detail::file_rename(filename_, filename_ + ".bak");
+        }
+        catch (...)
+        {
+            /* 吞下苦果，避免应用异常退出。*/
+        }
 
         ostrm_.clear();
         ostrm_.open(filename_, std::ios_base::out);
     }
 
-    virtual void consuming(level lvl, string_t& msg)
+    virtual void writing(level lvl, string_t& msg)
     {
         if (!is_open())
         {
@@ -1198,76 +1554,75 @@ private:
     std::basic_ofstream<charT> ostrm_;
 };
 
-using file_sink = basic_file_sink<char>;
-using wfile_sink = basic_file_sink<wchar_t>;
+template <class layoutT = default_layout
+          , class formatterT = formatter<layoutT>>
+using file_sink     = basic_file_sink<char, layoutT, formatterT>;
+
+template <class layoutT = default_layout
+          , class formatterT = formatter<layoutT>>
+using wfile_sink    = basic_file_sink<wchar_t, layoutT, formatterT>;
 
 // 文件槽(utf-8)
-template <class charT>
-class basic_u8_file_sink : public basic_file_sink<charT>
+template <class charT, class layoutT = default_layout
+          , class formatterT = formatter<layoutT>>
+class basic_u8_file_sink : public basic_file_sink<charT, layoutT, formatterT>
 {
 public:
-    using base = basic_file_sink<charT>;
+    using base      = basic_file_sink<charT, layoutT, formatterT>;
     using char_type = typename base::char_type;
-    using string_t = typename base::string_t;
-
-    using codecvt_ansi = std::codecvt_byname<wchar_t, charT, std::mbstate_t>;
-    using ansi_cvt_t = std::wstring_convert<codecvt_ansi>;
-    using u8_cvt_t = std::wstring_convert<std::codecvt_utf8<wchar_t>>;
+    using string_t  = typename base::string_t;
 
 public:
-    explicit basic_u8_file_sink(char const* filename
-        , std::uintmax_t max_file_size = base::default_max_file_size
-        , std::ios_base::openmode mode = std::ios_base::app
-        , std::locale const& loc = std::locale(std::locale("")
-            , new std::codecvt_utf8<wchar_t>))
+    explicit basic_u8_file_sink
+    (char const* filename
+     , std::uintmax_t max_file_size
+     = base::default_max_file_size
+       , std::ios_base::openmode mode
+     = std::ios_base::app
+       , std::locale const& loc
+     = std::locale(std::locale(""), new std::codecvt_utf8<wchar_t>))
         : base(filename, max_file_size, mode, loc)
     {
     }
 
 protected:
-    virtual void before_consume(level lvl, string_t& msg)
+    virtual void before_write(level lvl, string_t& msg)
     {
-#if defined(TINYLOG_WINDOWS_API)
-
-        auto const ws = ansi_cvt_->from_bytes(msg.data()
-            , msg.data()+msg.size());
-
-#else
-
-        std::wstring const ws = detail::a2w_holder(msg.c_str()).c_str();
-
-#endif  // TINYLOG_WINDOWS_API
-
-        msg = u8_cvt_.to_bytes(ws);
+        string_t const from = msg;
+        code_converter<u8string>::to_string(msg, from);
     }
-
-private:
-#if defined(TINYLOG_WINDOWS_API)
-
-    std::shared_ptr<ansi_cvt_t> ansi_cvt_
-        = std::make_shared<ansi_cvt_t>(new codecvt_ansi(""));
-
-#endif  // TINYLOG_WINDOWS_API
-
-    u8_cvt_t u8_cvt_;
 };
 
-template <>
-class basic_u8_file_sink<wchar_t> : public basic_file_sink<wchar_t>
+template <class layoutT, class formatterT>
+class basic_u8_file_sink<wchar_t, layoutT, formatterT>
+    : public basic_file_sink<wchar_t, layoutT, formatterT>
 {
 public:
-    explicit basic_u8_file_sink(char const* filename
-        , std::uintmax_t max_file_size = default_max_file_size
-        , std::ios_base::openmode mode = std::ios_base::app
-        , std::locale const& loc = std::locale(std::locale("")
-            , new std::codecvt_utf8<wchar_t>))
-        : basic_file_sink(filename, max_file_size, mode, loc)
+    using base      = basic_file_sink<wchar_t, layoutT, formatterT>;
+    using char_type = typename base::char_type;
+    using string_t  = typename base::string_t;
+
+public:
+    explicit basic_u8_file_sink
+    (char const* filename
+     , std::uintmax_t max_file_size
+     = base::default_max_file_size
+       , std::ios_base::openmode mode
+     = std::ios_base::app
+       , std::locale const& loc
+     = std::locale(std::locale(""), new std::codecvt_utf8<wchar_t>))
+        : base(filename, max_file_size, mode, loc)
     {
     }
 };
 
-using u8_file_sink = basic_u8_file_sink<char>;
-using wu8_file_sink = basic_u8_file_sink<wchar_t>;
+template <class layoutT = default_layout
+          , class formatterT = formatter<layoutT>>
+using u8_file_sink = basic_u8_file_sink<char, layoutT, formatterT>;
+
+template <class layoutT = default_layout
+          , class formatterT = formatter<layoutT>>
+using wu8_file_sink = basic_u8_file_sink<wchar_t, layoutT, formatterT>;
 
 }  // namespace sink
 
@@ -1282,8 +1637,8 @@ class sink_manager
 {
 public:
     using char_type = charT;
-    using string_t = std::basic_string<char_type>;
-    using sink_t = std::shared_ptr<sink::basic_sink<charT>>;
+    using string_t  = std::basic_string<char_type>;
+    using sink_t    = std::shared_ptr<sink::basic_sink<charT>>;
 
 public:
     static void add_sink(sink_t sink)
@@ -1291,25 +1646,17 @@ public:
         sinks_.emplace_back(sink);
     }
 
-    static void consume(level lvl, string_t const& msg)
+    template <class recordT>
+    static void consume(recordT const& r)
     {
-        // bool writed = false;
         for (auto& sk : sinks_)
         {
             if (!*sk)
             {
                 continue;
             }
-            sk->consume(lvl, msg);
-            // writed = true;
+            sk->consume(r);
         }
-
-        // if (!writed)
-        // {
-        //     sink::basic_console_sink<charT> sk;
-        //     sk.consume(lvl, msg);
-        //     return;
-        // }
     }
 
 private:
@@ -1327,6 +1674,7 @@ std::list<typename sink_manager<charT>::sink_t> sink_manager<charT>::sinks_;
 // 日志记录器
 //
 //////////////////////////////////////////////////////////////////////////////
+
 class logger
 {
 public:
@@ -1377,83 +1725,23 @@ public:
      * 一般在对日志设置完毕后，做为第一条日志记录，
      * 让日志文件看起来有明显的边界。
      */
-    static std::string title()
+    static std::string title(std::string const& text = "TinyLog")
     {
-        using record = detail::basic_record<char>;
-        return record::title();
+        return detail::gen_title<std::string::value_type>(text
+                , TINYLOG_TITILE_CHAR);
     }
 
-    static std::wstring wtitle()
+    static std::wstring wtitle(std::wstring const& text = L"TinyLog")
     {
-        using record = detail::basic_record<wchar_t>;
-        return record::title();
+        return detail::gen_title(text, TINYLOG_TITILE_CHARW);
     }
 
 public:
-    /** \brief 格式化日志记录
-     *
-     * 使用形式参见 std::fprintf(...)
-     */
-    template <class charT, class... Args>
-    static void lformat(level lvl, charT const* fmt, Args&& ...args)
+    template <class recordT>
+    static void push_back(recordT const& r)
     {
-        using record = detail::basic_record<charT>;
-
-        if (!consume(lvl))
-        {
-            return ;
-        }
-
-        std::basic_string<charT> const msg
-            = record::lformat(lvl, fmt, std::forward<Args>(args)...);
-
-        detail::sink_manager<charT>::consume(lvl, msg);
-    }
-
-    template <class charT, class... Args>
-    static void lformat_d(detail::debug_holder<charT> const& dh
-        , level lvl, charT const* fmt, Args&& ...args)
-    {
-        using string_t = std::basic_string<charT>;
-        using record = detail::basic_record<charT>;
-
-        if (!consume(lvl))
-        {
-            return ;
-        }
-
-        string_t const msg
-            = record::lformat(lvl, fmt, std::forward<Args>(args)...);
-
-        string_t const debug_info
-            = record::format(dh.fmt.c_str()
-                , dh.file.c_str(), dh.line, dh.func.c_str());
-
-        detail::sink_manager<charT>::consume(lvl, msg + debug_info);
-    }
-
-private:
-    /** \brief 格式化日志记录
-     *
-     * 使用形式参见 std::printf(...)
-     *
-     * format 与 lformat 最大的区别仅仅是 lformat 将产生记录的时间、日志级别等信息,
-     * 而 format 完全与 std::printf 一致，仅仅格式化字符串参数。
-     */
-    template <class charT, class... Args>
-    static void format(level lvl, charT const* fmt, Args&& ...args)
-    {
-        using record = detail::basic_record<charT>;
-
-        if (!consume(lvl))
-        {
-            return ;
-        }
-
-        std::basic_string<charT> const msg
-            = record::format(fmt, std::forward<Args>(args)...);
-
-        detail::sink_manager<charT>::consume(lvl, msg);
+        using char_type = typename recordT::char_type;
+        detail::sink_manager<char_type>::consume(r);
     }
 
 private:
@@ -1465,114 +1753,171 @@ level logger::level_ = trace;
 
 //////////////////////////////////////////////////////////////////////////////
 //
-//  流化支持
+//  捕获日志记录
 //
 //////////////////////////////////////////////////////////////////////////////
 namespace detail
 {
 
 template <class charT>
-inline charT const* default_lformat_str()
+class basic_lprintf
 {
-    return "%s";
-}
+public:
+    using char_type = charT;
+    using string_t  = std::basic_string<char_type>;
+    using record_t  = basic_record<char_type>;
 
-template <>
-inline wchar_t const* default_lformat_str<wchar_t>()
-{
-    return L"%ls";
-}
+    explicit basic_lprintf(level lvl)
+        : record_(lvl)
+    {
+    }
+
+    bool operator()(string_t const& fmt)
+    {
+        record_.message = fmt;
+        return true;
+    }
+
+    template <class... Args>
+    bool operator()(string_t const& fmt, Args&&... args)
+    {
+        sprintf_constructor<char_type>::construct(record_.message
+                , fmt.c_str(), std::forward<Args>(args)...);
+        return true;
+    }
+
+    ~basic_lprintf()
+    {
+        logger::push_back(record_);
+    }
+
+private:
+    record_t record_;
+};
+
+using lprintf_impl  = basic_lprintf<char>;
+using lwprintf_impl = basic_lprintf<wchar_t>;
 
 template <class charT>
-inline charT const* debug_format_str()
+class basic_lprintf_d
 {
-    return TINYLOG_DEBUG_PRINTF_FMT;
-}
+public:
+    using char_type = charT;
+    using string_t  = std::basic_string<char_type>;
+    using record_t  = basic_record_d<char_type>;
 
-template <>
-inline wchar_t const* debug_format_str<wchar_t>()
-{
-    return TINYLOG_DEBUG_PRINTF_FMTW;
-}
+    explicit basic_lprintf_d(level lvl
+                             , string_t const& file
+                             , std::size_t line
+                             , string_t const& func)
+        : record_(lvl, file, line, func)
+    {
+    }
 
-// 流化支持: 日志输出流持有对象
+    bool operator()(string_t const& fmt)
+    {
+        record_.message = fmt;
+        return true;
+    }
+
+    template <class... Args>
+    bool operator()(string_t const& fmt, Args&&... args)
+    {
+        sprintf_constructor<char_type>::construct(record_.message
+                , fmt.c_str(), std::forward<Args>(args)...);
+        return true;
+    }
+
+    ~basic_lprintf_d()
+    {
+        logger::push_back(record_);
+    }
+
+private:
+    record_t record_;
+};
+
+using lprintf_d_impl  = basic_lprintf_d<char>;
+using lwprintf_d_impl = basic_lprintf_d<wchar_t>;
+
+// 流化支持: 日志输出流
 template<class charT>
 class basic_olstream : public std::basic_ostream<charT>
 {
 public:
+    using base      = std::basic_ostream<charT>;
     using char_type = charT;
-    using base = std::basic_ostream<char_type>;
-    using sbuf_t = std::basic_stringbuf<char_type>;
+    using string_t  = std::basic_string<char_type>;
+    using sbuf_t    = std::basic_stringbuf<char_type>;
+    using record_t  = basic_record<char_type>;
+
+public:
+    explicit basic_olstream(string_t const& s, level lvl)
+        : base(&stringbuf_), stringbuf_(s), record_(lvl)
+    {
+    }
 
     explicit basic_olstream(level lvl)
-            : base(&stringbuf_), level_(lvl)
+        : base(&stringbuf_), record_(lvl)
     {
     }
 
-    explicit operator bool()
+    ~basic_olstream()
     {
-        return is_open();
-    }
-
-    bool operator!()
-    {
-        return !is_open();
-    }
-
-public:
-    bool is_open()
-    {
-        return logger::consume(level_) && open_;
-    }
-
-    virtual void close()
-    {
-        logger::lformat(level_, default_lformat_str<char_type>()
-            , stringbuf_.str().c_str());
-        open_ = false;
-    }
-
-protected:
-    sbuf_t stringbuf_;
-    bool open_ = true;
-    level level_;
-};
-
-using olstream = basic_olstream<char>;
-using wolstream = basic_olstream<wchar_t>;
-
-// 支持调试信息
-template<class charT>
-class basic_olstream_d : public basic_olstream<charT>
-{
-public:
-    using base = basic_olstream<charT>;
-    using char_type = typename base::char_type;
-
-public:
-    explicit basic_olstream_d(level lvl
-        , std::basic_string<charT> const& file
-        , size_t line
-        , std::basic_string<charT> const& func)
-            : base(lvl)
-    {
-        dh_ = { debug_format_str<char_type>(), file, line, func };
-    }
-
-    virtual void close()
-    {
-        logger::lformat_d(dh_, base::level_
-            , default_lformat_str<char_type>()
-            , base::stringbuf_.str().c_str());
-        base::open_ = false;
+        record_.message = stringbuf_.str();
+        logger::push_back(record_);
     }
 
 private:
-    detail::debug_holder<char_type> dh_;
+    sbuf_t stringbuf_;
+    record_t record_;
 };
 
-using olstream_d = basic_olstream_d<char>;
-using wolstream_d = basic_olstream_d<wchar_t>;
+using olstream  = basic_olstream<char>;
+using wolstream = basic_olstream<wchar_t>;
+
+// 流化支持: 支持调试信息
+template<class charT>
+class basic_olstream_d : public std::basic_ostream<charT>
+{
+public:
+    using base      = std::basic_ostream<charT>;
+    using char_type = charT;
+    using string_t  = std::basic_string<char_type>;
+    using sbuf_t    = std::basic_stringbuf<char_type>;
+    using record_t  = basic_record_d<char_type>;
+
+public:
+    explicit basic_olstream_d(string_t const& s, level lvl
+                              , string_t const& file
+                              , std::size_t line
+                              , string_t const& func)
+        : base(&stringbuf_), stringbuf_(s)
+        , record_(lvl, file, line, func)
+    {
+    }
+
+    explicit basic_olstream_d(level lvl
+                              , string_t const& file
+                              , std::size_t line
+                              , string_t const& func)
+        : base(&stringbuf_), record_(lvl, file, line, func)
+    {
+    }
+
+    ~basic_olstream_d()
+    {
+        record_.message = stringbuf_.str();
+        logger::push_back(record_);
+    }
+
+private:
+    sbuf_t stringbuf_;
+    record_t record_;
+};
+
+using olstream_d    = basic_olstream_d<char>;
+using wolstream_d   = basic_olstream_d<wchar_t>;
 
 }  // namespace detail
 
@@ -1590,161 +1935,45 @@ using wolstream_d = basic_olstream_d<wchar_t>;
 namespace detail
 {
 
-#define TINYLOG_SPACE ' '
-#define TINYLOG_SPACEW TINYLOG_CRT_WIDE(TINYLOG_SPACE)
-
-#define TINYLOG_ELLIPSIS "..."
-#define TINYLOG_ELLIPSISW TINYLOG_CRT_WIDE(TINYLOG_ELLIPSIS)
-
-#define TINYLOG_COMMA ','
-#define TINYLOG_COMMAW TINYLOG_CRT_WIDE(TINYLOG_COMMA)
-
-#define TINYLOG_COLON ':'
-#define TINYLOG_COLONW TINYLOG_CRT_WIDE(TINYLOG_COLON)
-
-#define TINYLOG_LPARENTHESE '('
-#define TINYLOG_LPARENTHESEW TINYLOG_CRT_WIDE(TINYLOG_LPARENTHESE)
-
-#define TINYLOG_RPARENTHESE ')'
-#define TINYLOG_RPARENTHESEW TINYLOG_CRT_WIDE(TINYLOG_RPARENTHESE)
-
-#define TINYLOG_LBRACKET '['
-#define TINYLOG_LBRACKETW TINYLOG_CRT_WIDE(TINYLOG_LBRACKET)
-
-#define TINYLOG_RBRACKET ']'
-#define TINYLOG_RBRACKETW TINYLOG_CRT_WIDE(TINYLOG_RBRACKET)
-
-#define TINYLOG_LBRACE '{'
-#define TINYLOG_LBRACEW TINYLOG_CRT_WIDE(TINYLOG_LBRACE)
-
-#define TINYLOG_RBRACE '}'
-#define TINYLOG_RBRACEW TINYLOG_CRT_WIDE(TINYLOG_RBRACE)
-
 template <class charT>
-inline charT space()
-{
-    return TINYLOG_SPACE;
-}
+struct delimiters;
 
 template <>
-inline wchar_t space<wchar_t>()
+struct delimiters<char>
 {
-    return TINYLOG_SPACEW;
-}
-
-template <class charT>
-inline std::basic_string<charT> ellipsis()
-{
-    return TINYLOG_ELLIPSIS;
-}
-
-template <>
-inline std::basic_string<wchar_t> ellipsis<wchar_t>()
-{
-    return TINYLOG_ELLIPSISW;
-}
-
-template <class charT>
-inline charT comma()
-{
-    return TINYLOG_COMMA;
-}
+    static constexpr auto ellipsis      = "...";
+    static constexpr auto space         = ' ';
+    static constexpr auto comma         = ',';
+    static constexpr auto colon         = ':';
+    static constexpr auto lparenthese   = '(';
+    static constexpr auto rparenthese   = ')';
+    static constexpr auto lbracket      = '[';
+    static constexpr auto rbracket      = ']';
+    static constexpr auto lbrace        = '{';
+    static constexpr auto rbrace        = '}';
+};
 
 template <>
-inline wchar_t comma<wchar_t>()
+struct delimiters<wchar_t>
 {
-    return TINYLOG_COMMAW;
-}
-
-template <class charT>
-inline charT colon()
-{
-    return TINYLOG_COLON;
-}
-
-template <>
-inline wchar_t colon<wchar_t>()
-{
-    return TINYLOG_COLONW;
-}
-
-template <class charT>
-inline charT lparenthese()
-{
-    return TINYLOG_LPARENTHESE;
-}
-
-template <>
-inline wchar_t lparenthese()
-{
-    return TINYLOG_LPARENTHESEW;
-}
-
-template <class charT>
-inline charT rparenthese()
-{
-    return TINYLOG_RPARENTHESE;
-}
-
-template <>
-inline wchar_t rparenthese()
-{
-    return TINYLOG_RPARENTHESEW;
-}
-
-template <class charT>
-inline charT lbracket()
-{
-    return TINYLOG_LBRACKET;
-}
-
-template <>
-inline wchar_t lbracket()
-{
-    return TINYLOG_LBRACKETW;
-}
-
-template <class charT>
-inline charT rbracket()
-{
-    return TINYLOG_RBRACKET;
-}
-
-template <>
-inline wchar_t rbracket()
-{
-    return TINYLOG_RBRACKETW;
-}
-
-template <class charT>
-inline charT lbrace()
-{
-    return TINYLOG_LBRACE;
-}
-
-template <>
-inline wchar_t lbrace()
-{
-    return TINYLOG_LBRACEW;
-}
-
-template <class charT>
-inline charT rbrace()
-{
-    return TINYLOG_RBRACE;
-}
-
-template <>
-inline wchar_t rbrace()
-{
-    return TINYLOG_RBRACEW;
-}
+    static constexpr auto ellipsis      = L"...";
+    static constexpr auto space         = L' ';
+    static constexpr auto comma         = L',';
+    static constexpr auto colon         = L':';
+    static constexpr auto lparenthese   = L'(';
+    static constexpr auto rparenthese   = L')';
+    static constexpr auto lbracket      = L'[';
+    static constexpr auto rbracket      = L']';
+    static constexpr auto lbrace        = L'{';
+    static constexpr auto rbrace        = L'}';
+};
 
 // std::tuple
-template<class Tuple, size_t... Indices, class charT>
+template<class Tuple, size_t... Indices
+         , class charT, class delimiterT = delimiters<charT>>
 inline void print_tuple(Tuple&& t
-    , indices_holder<Indices...>
-    , std::basic_ostream<charT>& out)
+                        , indices_holder<Indices...>
+                        , std::basic_ostream<charT>& out)
 {
     using swallow = int[];
     auto delimiters = [](size_t idx) -> std::basic_string<charT>
@@ -1753,12 +1982,12 @@ inline void print_tuple(Tuple&& t
         {
             return std::basic_string<charT>();
         }
-        return { comma<charT>(), space<charT>() };
+        return { delimiterT::comma, delimiterT::space };
     };
 
-    out << lparenthese<charT>();
+    out << delimiterT::lparenthese;
     (void)swallow{0, (out << delimiters(Indices) << std::get<Indices>(t), 0)...};
-    out << rparenthese<charT>();
+    out << delimiterT::rparenthese;
 }
 
 struct sfinae
@@ -1802,7 +2031,7 @@ private:
 public:
     static constexpr bool value
         = (sizeof(has_key<T>(nullptr)) == sizeof(true_t))
-        && (sizeof(has_value<T>(nullptr)) == sizeof(true_t));
+          && (sizeof(has_value<T>(nullptr)) == sizeof(true_t));
 };
 
 // 容器是否有 begin() 成员
@@ -1814,9 +2043,10 @@ private:
     using begin_t = typename Container::const_iterator(Container::*)() const;
 
     template <typename Container>
-    static true_t& has(typename std::enable_if \
-        <std::is_same<decltype(static_cast<begin_t<Container>>(&Container::begin))
-            , begin_t<Container>>::value>::type*);
+    static true_t& has(typename std::enable_if<std::is_same
+                       <decltype(static_cast<begin_t<Container>>
+                                 (&Container::begin))
+                       , begin_t<Container>>::value>::type*);
 
     template <typename Container>
     static false_t& has(...);
@@ -1834,9 +2064,10 @@ private:
     using end_t = typename Container::const_iterator(Container::*)() const;
 
     template <typename Container>
-    static true_t& has(typename std::enable_if \
-        <std::is_same<decltype(static_cast<end_t<Container>>(&Container::end))
-            , end_t<Container>>::value>::type*);
+    static true_t& has(typename std::enable_if<std::is_same
+                       <decltype(static_cast<end_t<Container>>
+                                 (&Container::end))
+                       , end_t<Container>>::value>::type*);
 
     template <typename Container>
     static false_t& has(...);
@@ -1849,40 +2080,41 @@ public:
 template <class T>
 struct support_free_begin_stl
     : public std::integral_constant<bool
-        , has_const_iterator<T>::value
-        && has_begin_iterator<T>::value
-        && has_end_iterator<T>::value>
+    , has_const_iterator<T>::value
+      && has_begin_iterator<T>::value
+      && has_end_iterator<T>::value>
 {
 };
 
 template <typename T>
 struct support_free_begin_stl<std::valarray<T>>
-    : public std::true_type
+            : public std::true_type
 {
 };
 
 // stl containers
-template <bool is_map, class Iterator, class charT>
+template <bool is_map, class Iterator
+          , class charT, class delimiterT = delimiters<charT>>
 inline void print_sequence(Iterator b, Iterator e
-    , std::basic_ostream<charT>& out)
+                           , std::basic_ostream<charT>& out)
 {
     // 只打印前 100 个元素
     constexpr size_t max_print_count = 100u;
 
-    out << (is_map ? lbrace<charT>() : lbracket<charT>());
+    out << (is_map ? delimiterT::lbrace : delimiterT::lbracket);
     for (size_t i = 0; b != e && i < max_print_count; ++i, ++b)
     {
         if (i > 0)
         {
-            out << comma<charT>() << space<charT>();
+            out << delimiterT::comma << delimiterT::space;
         }
         out << *b;
     }
     if (b != e)
     {
-        out << space<charT>() << ellipsis<charT>();
+        out << delimiterT::space << delimiterT::ellipsis;
     }
-    out << (is_map ? rbrace<charT>() : rbracket<charT>());
+    out << (is_map ? delimiterT::rbrace : delimiterT::rbracket);
 }
 
 }  // namespace detail
@@ -1895,15 +2127,16 @@ namespace std
 {
 
 // std::pair
-template<class charT, class Key, class Value>
+template<class charT, class Key, class Value
+         , class delimiterT = ::tinylog::detail::delimiters<charT>>
 inline std::basic_ostream<charT>&
 operator<<(std::basic_ostream<charT>& out
-    , std::pair<Key, Value> const& p)
+           , std::pair<Key, Value> const& p)
 {
     using namespace ::tinylog::detail;
 
     out << p.first
-        << colon<charT>() << space<charT>()
+        << delimiterT::colon << delimiterT::space
         << p.second;
     return out;
 }
@@ -1912,7 +2145,7 @@ operator<<(std::basic_ostream<charT>& out
 template<class charT, class... Args>
 inline std::basic_ostream<charT>&
 operator<<(std::basic_ostream<charT>& out
-    , std::tuple<Args...> const& t)
+           , std::tuple<Args...> const& t)
 {
     using namespace ::tinylog::detail;
 
@@ -1924,17 +2157,17 @@ operator<<(std::basic_ostream<charT>& out
 // stl::container
 template <class charT, class Container>
 inline typename std::enable_if
-    <::tinylog::detail::support_free_begin_stl<Container>::value
-    && !std::is_same<Container
-        , std::basic_string<typename Container::value_type>>::value
-    , std::basic_ostream<charT>&>::type
-operator<<(std::basic_ostream<charT>& out
-        , Container const& seq)
+<::tinylog::detail::support_free_begin_stl<Container>::value
+&& !std::is_same<Container
+, std::basic_string<typename Container::value_type>>::value
+        , std::basic_ostream<charT>&>::type
+        operator<<(std::basic_ostream<charT>& out
+                   , Container const& seq)
 {
     using namespace ::tinylog::detail;
 
     print_sequence<has_kv<Container>::value>(std::begin(seq)
-        , std::end(seq), out);
+            , std::end(seq), out);
     return out;
 }
 
@@ -1986,7 +2219,7 @@ std::string hexdump(std::string const& data)
 
     // content
     auto const row_size = data.size() / ascii_cnt
-        + ((data.size() % ascii_cnt) ? 1 : 0);
+                          + ((data.size() % ascii_cnt) ? 1 : 0);
     for (auto r = 0u; r != row_size; ++r)
     {
         auto const row_idx = r * ascii_cnt;
@@ -2039,9 +2272,10 @@ inline std::string hexdump(wchar_t const* s, size_t n)
 template <bool hex_offset = false>
 inline std::wstring whexdump(std::string const& s)
 {
-    auto const buf = hexdump<hex_offset>(s);
-    std::wstring_convert<std::codecvt_utf8<wchar_t>> u8_cvt;
-    return u8_cvt.from_bytes(buf.data(), buf.data() + buf.size());
+    auto buf = hexdump<hex_offset>(s);
+    std::wstring ws;
+    code_converter<u8string>::to_string(ws, buf);
+    return ws;
 }
 
 template <bool hex_offset = false>

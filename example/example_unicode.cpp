@@ -15,10 +15,10 @@ int main(int argc, char* argv[])
     std::locale::global(loc);
 
     // 安装输出槽
-    logger::add_sink<sink::wconsole_sink>();
+    logger::add_sink<sink::wconsole_sink<default_layout>>();
 
     constexpr auto max_file_size = 5 * 1024 * 1024; // 5MB
-    logger::add_sink<sink::wu8_file_sink>("default.log", max_file_size);
+    logger::add_sink<sink::wu8_file_sink<>>("default.log", max_file_size);
 
     // 过滤日志级别
     logger::set_level(debug);
