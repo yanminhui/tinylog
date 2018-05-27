@@ -14,7 +14,7 @@ Thare are myriads of logging libraries of C++ out there. Many of them have exten
 
 - **Trivial integration**： Our whole code consistes of a single header file [`tinylog.hpp`](https://github.com/yanminhui/tinylog/tree/master/include/tinylog.hpp). That's it. No library, no subject, no dependencies, no complex build system.
 
-- **Custom output sink**：Customizing ouput sink by deriving `basic_sink`. Console color sink and file sink is avaliable by default.
+- **Custom output sink**：Customizing ouput sink by inheriting from the class `basic_sink`. Console color sink and file sink is avaliable by default.
 
 - **Custom layout**: You can specify your own layout specifiers. In order to do that you can use template parameters in output sinks.
 
