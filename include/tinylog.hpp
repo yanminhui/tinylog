@@ -99,7 +99,7 @@ SOFTWARE.
  *****************************************************************************
  *
  * 1) 优化: 重新调整代码结构, 支持针对不同槽定制布局v1.1.0 2018/05/27 yanmh
- *
+ * 2) 修正：wlout 拼写错误，layout using 错误. -------- 2018/05/28 yanmh
  */
 
 #ifndef TINYTINYLOG_HPP
@@ -232,7 +232,7 @@ SOFTWARE.
 #   define lout(lvl) ::tinylog::logger::consume(lvl) \
     && ::tinylog::detail::olstream(lvl)
 
-#   define wlout(lvl) ::tinylog::logger::conume(lvl) \
+#   define wlout(lvl) ::tinylog::logger::consume(lvl) \
     && ::tinylog::detail::wolstream(lvl)
 
 #else
@@ -1010,10 +1010,10 @@ struct layout_constructor<char>
     friend struct layout_constructor_base<layout_constructor<char>, char>;
 
     using base      = layout_constructor_base<layout_constructor<char>, char>;
-    using char_type = typename base::char_type;
-    using string_t  = typename base::string_t;
-    using record    = typename base::record;
-    using record_d  = typename base::record_d;
+    // using char_type = typename base::char_type;
+    // using string_t  = typename base::string_t;
+    // using record    = typename base::record;
+    // using record_d  = typename base::record_d;
 
     static constexpr auto sep = TINYLOG_SEPARATOR;
     static constexpr auto lf  = TINYLOG_LF;
@@ -1053,10 +1053,10 @@ struct layout_constructor<wchar_t>
     friend struct layout_constructor_base<layout_constructor<wchar_t>, wchar_t>;
 
     using base = layout_constructor_base<layout_constructor<wchar_t>, wchar_t>;
-    using char_type = typename base::char_type;
-    using string_t  = typename base::string_t;
-    using record    = typename base::record;
-    using record_d  = typename base::record_d;
+    // using char_type = typename base::char_type;
+    // using string_t  = typename base::string_t;
+    // using record    = typename base::record;
+    // using record_d  = typename base::record_d;
 
     static constexpr auto sep = TINYLOG_SEPARATORW;
     static constexpr auto lf  = TINYLOG_LFW;
