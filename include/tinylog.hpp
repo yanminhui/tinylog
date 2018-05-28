@@ -1249,6 +1249,10 @@ template <class charT, class layoutT = default_layout
           , class formatterT = formatter<layoutT>>
 struct basic_console_sink_base : public basic_sink<charT, layoutT, formatterT>
 {
+    using base      = basic_sink<charT, layoutT, formatterT>;
+    using char_type = typename base::char_type;
+    using string_t  = typename base::string_t;
+    
     virtual bool is_open()
     {
         return true;
@@ -1262,7 +1266,11 @@ template <class charT, class layoutT = default_layout
 class basic_console_sink_base : public basic_sink<charT, layoutT, formatterT>
 {
 public:
-    using color_t = std::pair<WORD, WORD>; // <fore_color, back_color>
+    using base      = basic_sink<charT, layoutT, formatterT>;
+    using char_type = typename base::char_type;
+    using string_t  = typename base::string_t;
+    
+    using color_t   = std::pair<WORD, WORD>; // <fore_color, back_color>
 
     static constexpr auto color_bold    = FOREGROUND_INTENSITY;
     static constexpr auto color_white   = FOREGROUND_RED
@@ -1385,9 +1393,10 @@ template <class charT, class layoutT = default_layout
 class basic_console_sink_base : public basic_sink<charT, layoutT, formatterT>
 {
 public:
-    using char_type = charT;
-    using string_t  = std::basic_string<char_type>;
-
+    using base      = basic_sink<charT, layoutT, formatterT>;
+    using char_type = typename base::char_type;
+    using string_t  = typename base::string_t;
+    
     virtual bool is_open()
     {
         return true;
