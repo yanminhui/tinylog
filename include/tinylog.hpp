@@ -2,7 +2,7 @@
  _____ _             _
 |_   _(_)_ __  _   _| |    ___   __ _
   | | | | '_ \| | | | |   / _ \ / _` | TinyLog for Modern C++
-  | | | | | | | |_| | |__| (_) | (_| | version 1.1.0
+  | | | | | | | |_| | |__| (_) | (_| | version 1.1.1
   |_| |_|_| |_|\__, |_____\___/ \__, | https://github.com/yanminhui/tinylog
                |___/            |___/
 
@@ -99,7 +99,8 @@ SOFTWARE.
  *****************************************************************************
  *
  * 1) 优化: 重新调整代码结构, 支持针对不同槽定制布局v1.1.0 2018/05/27 yanmh
- * 2) 修正：wlout 拼写错误，layout using 错误. -------- 2018/05/28 yanmh
+ * 2) 修正：wlout 拼写错误，layout using 错误. ----------- 2018/05/28 yanmh
+ * 3) 修正：wcstombs 依赖全局 locale, std::cout 异常v1.1.1 2018/05/28 yanmh
  */
 
 #ifndef TINYTINYLOG_HPP
@@ -133,7 +134,7 @@ SOFTWARE.
 // 版本信息
 #define TINYLOG_VERSION_MAJOR 1
 #define TINYLOG_VERSION_MINOR 1
-#define TINYLOG_VERSION_PATCH 0
+#define TINYLOG_VERSION_PATCH 1
 
 //--------------|
 // 用户可控制   |
@@ -221,7 +222,13 @@ SOFTWARE.
 #define TINYLOG_LEVEL_FATALW TINYLOG_CRT_WIDE(TINYLOG_LEVEL_FATAL)
 #define TINYLOG_LEVEL_UNKOWNW TINYLOG_CRT_WIDE(TINYLOG_LEVEL_UNKOWN)
 
-#ifdef NDEBUG
+#if defined(__GNUC__)
+#   define TINYLOG_FUNCTION __PRETTY_FUNCTION__
+#else
+#   define TINYLOG_FUNCTION __FUNCTION__
+#endif // __PRETTY_FUNCTION__
+
+#if defined(NDEBUG)
 
 #   define lprintf(lvl, fmt, ...) ::tinylog::logger::consume(lvl) \
     && (::tinylog::detail::lprintf_impl(lvl))(fmt, ##__VA_ARGS__)
@@ -239,23 +246,23 @@ SOFTWARE.
 
 #   define lprintf(lvl, fmt, ...) ::tinylog::logger::consume(lvl) \
     && (::tinylog::detail::lprintf_d_impl(lvl \
-        , __FILE__, __LINE__, __FUNCTION__)) \
+        , __FILE__, __LINE__, TINYLOG_FUNCTION)) \
         (fmt, ##__VA_ARGS__)
 
 #   define lwprintf(lvl, fmt, ...) ::tinylog::logger::consume(lvl) \
     && (::tinylog::detail::lwprintf_d_impl(lvl \
         , TINYLOG_CRT_WIDE(__FILE__), __LINE__ \
-        , ::tinylog::a2w(__FUNCTION__))) \
+        , ::tinylog::a2w(TINYLOG_FUNCTION))) \
         (fmt, ##__VA_ARGS__)
 
 #   define lout(lvl)  ::tinylog::logger::consume(lvl) \
     && ::tinylog::detail::olstream_d(lvl \
-        , __FILE__, __LINE__, __FUNCTION__)
+        , __FILE__, __LINE__, TINYLOG_FUNCTION)
 
 #   define wlout(lvl) ::tinylog::logger::consume(lvl) \
     && ::tinylog::detail::wolstream_d(lvl \
         , TINYLOG_CRT_WIDE(__FILE__), __LINE__ \
-        , ::tinylog::a2w(__FUNCTION__))
+        , ::tinylog::a2w(TINYLOG_FUNCTION))
 
 #endif  // NDEBUG
 
@@ -641,32 +648,47 @@ struct ansi_constructor<char>
                                         , int>::type = 0>
     static void construct(string_t& to, std::basic_string<charFT> const& from)
     {
-        for (std::size_t len = BUFSIZ
-                               ; len < (std::numeric_limits<std::size_t>::max)()
-                ; len += BUFSIZ)
+        using from_type = charFT;
+        using to_type = char_type;
+        using cvt_facet = std::codecvt<from_type, to_type, std::mbstate_t>;
+
+        constexpr std::size_t codecvt_buf_size = BUFSIZ;
+        // perhaps too large, but that's OK
+        // encodings like shift-JIS need some prefix space
+        std::size_t buf_size = from.length() * 4 + 4;
+        if (buf_size < codecvt_buf_size)
         {
-            to.resize(len);
-#if defined(TINYLOG_WINDOWS_API)
-            std::size_t to_size = static_cast<std::size_t>(-1);
-            if (::wcstombs_s(&to_size, const_cast<char_type*>(to.data())
-                             , len, from.c_str(), _TRUNCATE) != 0)
+            buf_size = codecvt_buf_size;
+        }
+        to.resize(buf_size);
+
+        std::locale loc("");
+        auto& cvt = std::use_facet<cvt_facet>(loc);
+        do
+        {
+            from_type const* fb = from.data();
+            from_type const* fe = from.data() + from.length();
+            from_type const* fn = nullptr;
+
+            to_type* tb = const_cast<to_type*>(to.data());
+            to_type* te = const_cast<to_type*>(to.data() + to.length());
+            to_type* tn = nullptr;
+
+            std::mbstate_t state = std::mbstate_t();
+            auto result = cvt.out(state, fb, fe, fn, tb, te, tn);
+            if (result == cvt_facet::ok || result == cvt_facet::noconv)
             {
-                break; // failed
-            }
-#else
-            std::size_t to_size = ::wcstombs(const_cast<char_type*>(to.data())
-                                             , from.c_str(), len);
-#endif  // TINYLOG_WINDOWS_API
-            if (to_size == static_cast<size_t>(-1))
-            {
-                break; // failed
-            }
-            if (to_size < len)
-            {
-                to.resize(to_size);
+                to.resize(tn - tb);
                 break;
             }
-        }
+            else if (result == cvt_facet::partial)
+            {
+                buf_size += codecvt_buf_size;
+                continue;
+            }
+            to.clear();
+            break; // failed
+        } while (true);
     }
 };
 
@@ -689,32 +711,46 @@ struct ansi_constructor<wchar_t>
                                         , int>::type = 0>
     static void construct(string_t& to, std::basic_string<charFT> const& from)
     {
-        for (std::size_t len = BUFSIZ
-                               ; len < (std::numeric_limits<std::size_t>::max)()
-                ; len += BUFSIZ)
+        using from_type = charFT;
+        using to_type = char_type;
+        using cvt_facet = std::codecvt<to_type, from_type, std::mbstate_t>;
+
+        constexpr std::size_t codecvt_buf_size = BUFSIZ;
+        // perhaps too large, but that's OK
+        std::size_t buf_size = from.length() * 3;
+        if (buf_size < codecvt_buf_size)
         {
-            to.resize(len);
-#if defined(TINYLOG_WINDOWS_API)
-            std::size_t to_size = static_cast<std::size_t>(-1);
-            if (::mbstowcs_s(&to_size, const_cast<char_type*>(to.data())
-                             , len, from.c_str(), _TRUNCATE) != 0)
+            buf_size = codecvt_buf_size;
+        }
+        to.resize(buf_size);
+
+        std::locale loc("");
+        auto& cvt = std::use_facet<cvt_facet>(loc);
+        do
+        {
+            from_type const* fb = from.data();
+            from_type const* fe = from.data() + from.length();
+            from_type const* fn = nullptr;
+
+            to_type* tb = const_cast<to_type*>(to.data());
+            to_type* te = const_cast<to_type*>(to.data() + to.length());
+            to_type* tn = nullptr;
+
+            std::mbstate_t state = std::mbstate_t();
+            auto result = cvt.in(state, fb, fe, fn, tb, te, tn);
+            if (result == cvt_facet::ok || result == cvt_facet::noconv)
             {
-                break; // failed
-            }
-#else
-            std::size_t to_size = ::mbstowcs(const_cast<char_type*>(to.data())
-                                             , from.c_str(), len);
-#endif  // TINYLOG_WINDOWS_API
-            if (to_size == static_cast<size_t>(-1))
-            {
-                break; // failed
-            }
-            if (to_size < len)
-            {
-                to.resize(to_size);
+                to.resize(tn - tb);
                 break;
             }
-        }
+            else if (result == cvt_facet::partial)
+            {
+                buf_size += codecvt_buf_size;
+                continue;
+            }
+            to.clear();
+            break; // failed
+        } while (true);
     }
 };
 
@@ -1252,7 +1288,7 @@ struct basic_console_sink_base : public basic_sink<charT, layoutT, formatterT>
     using base      = basic_sink<charT, layoutT, formatterT>;
     using char_type = typename base::char_type;
     using string_t  = typename base::string_t;
-    
+
     virtual bool is_open()
     {
         return true;
@@ -1269,7 +1305,7 @@ public:
     using base      = basic_sink<charT, layoutT, formatterT>;
     using char_type = typename base::char_type;
     using string_t  = typename base::string_t;
-    
+
     using color_t   = std::pair<WORD, WORD>; // <fore_color, back_color>
 
     static constexpr auto color_bold    = FOREGROUND_INTENSITY;
@@ -1396,7 +1432,7 @@ public:
     using base      = basic_sink<charT, layoutT, formatterT>;
     using char_type = typename base::char_type;
     using string_t  = typename base::string_t;
-    
+
     virtual bool is_open()
     {
         return true;
@@ -1443,17 +1479,10 @@ public:
     using char_type = typename base::char_type;
     using string_t  = typename base::string_t;
 
-public:
-    basic_console_sink(std::locale const& loc = std::locale(""))
-    {
-        std::clog.imbue(loc);
-    }
-
 protected:
     virtual void writing(level lvl, string_t& msg)
     {
-        std::clog.write(msg.data(), static_cast<std::streamsize>(msg.size()));
-        std::clog.flush();
+        std::printf("%s", msg.c_str());
     }
 };
 
@@ -1466,17 +1495,10 @@ public:
     using char_type = typename base::char_type;
     using string_t  = typename base::string_t;
 
-public:
-    basic_console_sink(std::locale const& loc = std::locale(""))
-    {
-        std::wclog.imbue(loc);
-    }
-
 protected:
     virtual void writing(level lvl, string_t& msg)
     {
-        std::wclog.write(msg.data(), msg.size());
-        std::wclog.flush();
+        std::wprintf(L"%ls", msg.c_str());
     }
 };
 
