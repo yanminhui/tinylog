@@ -98,9 +98,10 @@ SOFTWARE.
  *
  *****************************************************************************
  *
- * 1) 优化: 重新调整代码结构, 支持针对不同槽定制布局v1.1.0 2018/05/27 yanmh
+ * 1) 优化：重新调整代码结构, 支持针对不同槽定制布局v1.1.0 2018/05/27 yanmh
  * 2) 修正：wlout 拼写错误，layout using 错误. ----------- 2018/05/28 yanmh
  * 3) 修正：wcstombs 依赖全局 locale, std::cout 异常v1.1.1 2018/05/28 yanmh
+ * 4) 优化：解耦终端颜色控制日志槽 v1.1.2 ---------------- 2018/06/01 yanmh
  */
 
 #ifndef TINYTINYLOG_HPP
@@ -1166,13 +1167,223 @@ struct formatter
 
 //////////////////////////////////////////////////////////////////////////////
 //
+// 终端颜色样式
+//
+//////////////////////////////////////////////////////////////////////////////
+namespace detail
+{
+
+enum class foreground
+{
+#if defined(TINYLOG_WINDOWS_API)
+
+    white       = FOREGROUND_BLUE | FOREGROUND_GREEN | FOREGROUND_RED 
+    , cyan      = FOREGROUND_BLUE | FOREGROUND_GREEN 
+    , green     = FOREGROUND_GREEN
+    , yellow    = FOREGROUND_GREEN | FOREGROUND_RED
+    , red       = FOREGROUND_RED
+
+#else 
+    
+    white       = 37
+    , cyan      = 36
+    , green     = 32
+    , yellow    = 33
+    , red       = 31
+    
+#endif  // TINYLOG_WINDOWS_API
+};
+
+enum class background
+{
+#if defined(TINYLOG_WINDOWS_API)
+
+    white       = BACKGROUND_BLUE | BACKGROUND_GREEN | BACKGROUND_RED 
+    , cyan      = BACKGROUND_BLUE | BACKGROUND_GREEN 
+    , green     = BACKGROUND_GREEN
+    , yellow    = BACKGROUND_GREEN | BACKGROUND_RED
+    , red       = BACKGROUND_RED
+
+#else 
+    
+    white       = 47
+    , cyan      = 46
+    , green     = 42
+    , yellow    = 43
+    , red       = 41
+    
+#endif  // TINYLOG_WINDOWS_API
+};
+
+enum class emphasize
+{
+#if defined(TINYLOG_WINDOWS_API)
+
+    normal      = 0
+    , bold      = FOREGROUND_INTENSITY
+    
+#else
+    
+    normal      = 22
+    , bold      = 1
+    
+#endif  // TINYLOG_WINDOWS_API
+};
+
+struct rgb
+{
+    foreground fg;
+    background bg;
+    emphasize em;
+};
+
+template <class charT>
+struct basic_style_impl
+{    
+    using char_type     = charT;
+    using string_t      = std::basic_string<char_type>;
+    
+    static rgb curr_rgb(bool raw = false)
+    {
+#if defined(TINYLOG_WINDOWS_API)
+
+        CONSOLE_SCREEN_BUFFER_INFO info;
+        auto handle = ::GetStdHandle(STD_OUTPUT_HANDLE);
+        ::GetConsoleScreenBufferInfo(handle, &info);
+        
+        auto fg = static_cast<foreground>(info.wAttributes & 0x07);
+        auto bg = static_cast<background>(info.wAttributes & 0x70);
+        auto em = static_cast<emphasize>(info.wAttributes & 0x08);
+
+#else 
+
+        auto fg = raw ? static_cast<foreground>(39) : curr_.fg;
+        auto bg = raw ? static_cast<background>(49) : curr_.bg;
+        auto em = raw ? static_cast<emphasize>(22) : curr_.em;
+        
+#endif  // TINYLOG_WINDOWS_API
+     
+        if (raw)
+        {
+            // nothing to do.
+        }
+        else if (reset_)
+        {
+            reset_ = false;
+        }
+        
+        return { fg, bg, em };
+    }
+
+    static rgb curr_rgb_raw()
+    {
+        bool raw = true;
+        return curr_rgb(raw);
+    }
+    
+    static string_t set_rgb(rgb const& c)
+    {                
+#if defined(TINYLOG_WINDOWS_API)
+
+        CONSOLE_SCREEN_BUFFER_INFO info;
+        auto handle = ::GetStdHandle(STD_OUTPUT_HANDLE);
+        ::GetConsoleScreenBufferInfo(handle, &info);
+        
+        info.wAttributes &= 0xFF80;
+        using attr_t    = decltype(info.wAttributes);
+        auto fg         = static_cast<attr_t>(c.fg);
+        auto bg         = (info.wAttributes & 0x70) | static_cast<attr_t>(c.bg);
+        auto em         = static_cast<attr_t>(c.em);
+
+        info.wAttributes |= fg;
+        info.wAttributes |= bg;
+        info.wAttributes |= em;
+        ::SetConsoleTextAttribute(handle, info.wAttributes);
+        return string_t();
+        
+#else
+    
+        curr_ = c;
+   
+        std::basic_ostringstream<char_type> oss;
+        auto calc = [&oss](std::size_t n)
+        {
+            oss << oss.widen('\033') << oss.widen('[') << n << oss.widen('m');
+        };
+        calc(static_cast<std::size_t>(curr_.fg));
+        calc(static_cast<std::size_t>(curr_.bg));
+        calc(static_cast<std::size_t>(curr_.em));
+        
+        return oss.str();
+        
+#endif  // TINYLOG_WINDOWS_API
+    }
+    
+    static string_t set_rgb_raw()
+    {
+        reset_ = true;
+        return set_rgb(default_);
+    }
+    
+private:
+    static rgb default_;
+    static bool reset_;
+    static rgb curr_;
+};
+
+template <class charT>
+rgb basic_style_impl<charT>::default_ = basic_style_impl<charT>::curr_rgb_raw();
+
+template <class charT>
+bool basic_style_impl<charT>::reset_ = true;
+
+template <class charT>
+rgb basic_style_impl<charT>::curr_ = basic_style_impl<charT>::curr_rgb_raw();
+
+template <class charT>
+void style(std::basic_string<charT>& color, foreground fg)
+{
+    using impl  = basic_style_impl<charT>;
+    auto curr   = impl::curr_rgb();
+    curr.fg     = fg;
+    color       = impl::set_rgb(curr);
+}
+
+template <class charT>
+void style(std::basic_string<charT>& color, background bg)
+{
+    using impl  = basic_style_impl<charT>;
+    auto curr   = impl::curr_rgb();
+    curr.bg     = bg;
+    color       = impl::set_rgb(curr);
+}
+
+template <class charT>
+void style(std::basic_string<charT>& color, emphasize em)
+{
+    using impl  = basic_style_impl<charT>;
+    auto curr   = impl::curr_rgb();
+    curr.em     = em;
+    color       = impl::set_rgb(curr);
+}
+
+template <class charT>
+void style(std::basic_string<charT>& color)
+{
+    using impl  = basic_style_impl<charT>;
+    color       = impl::set_rgb_raw();
+}
+
+}  // namespace detail
+
+//////////////////////////////////////////////////////////////////////////////
+//
 // 日志输出槽:
 //     使用者可以定制，实现属于自己的槽，使日志消息输出到不同对象上。
 //
 //////////////////////////////////////////////////////////////////////////////
 namespace sink
 {
-
 // 互斥量类型
 #if defined(TINYLOG_USE_SINGLE_THREAD)
 using mutex_t = detail::null_mutex;
@@ -1279,153 +1490,8 @@ private:
 };
 
 // 终端槽
-#if defined(TINYLOG_DISABLE_CONSOLE_COLOR)
-
 template <class charT, class layoutT = default_layout
           , class formatterT = formatter<layoutT>>
-struct basic_console_sink_base : public basic_sink<charT, layoutT, formatterT>
-{
-    using base      = basic_sink<charT, layoutT, formatterT>;
-    using char_type = typename base::char_type;
-    using string_t  = typename base::string_t;
-
-    virtual bool is_open()
-    {
-        return true;
-    }
-};
-
-#elif defined(TINYLOG_WINDOWS_API)
-
-template <class charT, class layoutT = default_layout
-          , class formatterT = formatter<layoutT>>
-class basic_console_sink_base : public basic_sink<charT, layoutT, formatterT>
-{
-public:
-    using base      = basic_sink<charT, layoutT, formatterT>;
-    using char_type = typename base::char_type;
-    using string_t  = typename base::string_t;
-
-    using color_t   = std::pair<WORD, WORD>; // <fore_color, back_color>
-
-    static constexpr auto color_bold    = FOREGROUND_INTENSITY;
-    static constexpr auto color_white   = FOREGROUND_RED
-                                          | FOREGROUND_GREEN | FOREGROUND_BLUE;
-    static constexpr auto color_cyan    = FOREGROUND_GREEN | FOREGROUND_BLUE;
-    static constexpr auto color_green   = FOREGROUND_GREEN;
-    static constexpr auto color_red     = FOREGROUND_RED;
-    static constexpr auto color_yellow  = FOREGROUND_RED | FOREGROUND_GREEN;
-
-public:
-    basic_console_sink_base()
-    {
-        out_handle_ = ::GetStdHandle(STD_OUTPUT_HANDLE);
-    }
-
-    virtual ~basic_console_sink_base()
-    {
-        ::CloseHandle(out_handle_);
-    }
-
-    virtual bool is_open()
-    {
-        return true;
-    }
-
-protected:
-    virtual void before_writing(level lvl, string_t& msg)
-    {
-        auto color = level_color(lvl);
-        orig_color_ = set_console_attribs(std::make_pair(color
-                                          , orig_color_.second));
-    }
-
-    virtual void after_writing(level lvl, string_t& msg)
-    {
-        set_console_attribs(orig_color_);
-    }
-
-private:
-    WORD level_color(level lvl)
-    {
-        switch (lvl)
-        {
-        case level::trace:
-            return color_white;
-        case level::debug:
-            return color_cyan;
-        case level::info:
-            return color_green;
-        case level::warn:
-            return color_bold | color_yellow;
-        case level::error:
-            return color_bold | color_red;
-        case level::fatal:
-            return color_bold | color_white | BACKGROUND_RED;
-        default:
-            break;
-        }
-        return 0;
-    }
-
-    // set color and return the orig console attributes (for resetting later)
-    color_t set_console_attribs(color_t color)
-    {
-        CONSOLE_SCREEN_BUFFER_INFO orig_buffer_info;
-        ::GetConsoleScreenBufferInfo(out_handle_, &orig_buffer_info);
-
-        WORD bk_color = orig_buffer_info.wAttributes;
-        bk_color &= static_cast<WORD>(~(FOREGROUND_RED
-                                        | FOREGROUND_GREEN
-                                        | FOREGROUND_BLUE
-                                        | FOREGROUND_INTENSITY));
-
-        ::SetConsoleTextAttribute(out_handle_, color.first | color.second);
-        return  std::make_pair(orig_buffer_info.wAttributes, bk_color);
-    }
-
-private:
-    HANDLE out_handle_ = 0;
-    color_t orig_color_ = std::make_pair(0, 0);
-};
-
-#else  // TINYLOG_POSIX_API
-
-namespace detail
-{
-
-template <class charT>
-struct level_color;
-
-template <>
-struct level_color<char>
-{
-    static constexpr auto close = "\033[0m";
-    static constexpr auto trace = "\033[37m";       // white
-    static constexpr auto debug = "\033[36m";       // cyan = green + blue
-    static constexpr auto info  = "\033[32m";       // green
-    static constexpr auto warn  = "\033[1;33m";     // bold + yellow
-    static constexpr auto error = "\033[1;31m";     // bold + red
-    static constexpr auto fatal = "\033[1;37;41m";  // bold + white + bk_red
-};
-
-template <>
-struct level_color<wchar_t>
-{
-    static constexpr auto close = L"\033[0m";
-    static constexpr auto trace = L"\033[37m";      // white
-    static constexpr auto debug = L"\033[36m";      // cyan = green + blue
-    static constexpr auto info  = L"\033[32m";      // green
-    static constexpr auto warn  = L"\033[1;33m";    // bold + yellow
-    static constexpr auto error = L"\033[1;31m";    // bold + red
-    static constexpr auto fatal = L"\033[1;37;41m"; // bold + white + bk_red
-};
-
-}  // namespace detail
-
-template <class charT, class layoutT = default_layout
-          , class formatterT = formatter<layoutT>
-          , class level_colorT = detail::level_color<charT>>
 class basic_console_sink_base : public basic_sink<charT, layoutT, formatterT>
 {
 public:
@@ -1439,36 +1505,73 @@ public:
     }
 
 protected:
-    virtual void before_writing(level lvl, string_t& msg)
+    void writing(level lvl, string_t& msg) override final
     {
-        msg = level_color(lvl) + msg + level_colorT::close;
+        std::basic_istringstream<char_type> iss(msg);
+        string_t line;
+        while (std::getline(iss, line))
+        {
+            write_line(lvl, line);
+        }
     }
 
-private:
-    string_t level_color(level lvl)
+    virtual void write_line(level lvl, string_t const& line) = 0;
+
+protected:
+    string_t style_beg(level lvl) const
     {
+        using namespace detail;
+
+        string_t color_text;
+
+#if !defined(TINYLOG_DISABLE_CONSOLE_COLOR)
+
         switch (lvl)
         {
         case level::trace:
-            return level_colorT::trace;
+            style(color_text, foreground::white);
+            break;
         case level::debug:
-            return level_colorT::debug;
+            style(color_text, foreground::cyan);
+            break;
         case level::info:
-            return level_colorT::info;
+            style(color_text, foreground::green);
+            break;
         case level::warn:
-            return level_colorT::warn;
+            style(color_text, foreground::yellow);
+            style(color_text, emphasize::bold);
+            break;
         case level::error:
-            return level_colorT::error;
+            style(color_text, foreground::red);
+            style(color_text, emphasize::bold);
+            break;
         case level::fatal:
-            return level_colorT::fatal;
+            style(color_text, foreground::red);
+            style(color_text, background::white);
+            style(color_text, emphasize::bold);
+            break;
         default:
             break;
         }
-        return 0;
+
+#endif
+
+        return color_text;
+    }
+    
+    string_t style_end() const
+    {
+        string_t color_text;
+
+#if !defined(TINYLOG_DISABLE_CONSOLE_COLOR)
+
+        detail::style(color_text);
+
+#endif
+
+        return color_text;
     }
 };
-
-#endif  // TINYLOG_DISABLE_CONSOLE_COLOR
 
 template <class charT, class layoutT = default_layout
           , class formatterT = formatter<layoutT>>
@@ -1480,9 +1583,12 @@ public:
     using string_t  = typename base::string_t;
 
 protected:
-    virtual void writing(level lvl, string_t& msg)
+    void write_line(level lvl, string_t const& line) override final
     {
-        std::printf("%s", msg.c_str());
+        std::printf("%s", base::style_beg(lvl).c_str());
+        std::printf("%s", line.c_str());
+        std::printf("%s", base::style_end().c_str());
+        std::printf("\n");
     }
 };
 
@@ -1495,10 +1601,13 @@ public:
     using char_type = typename base::char_type;
     using string_t  = typename base::string_t;
 
-protected:
-    virtual void writing(level lvl, string_t& msg)
+protected: 
+    void write_line(level lvl, string_t const& line) override final
     {
-        std::wprintf(L"%ls", msg.c_str());
+        std::wprintf(L"%ls", base::style_beg(lvl).c_str());
+        std::wprintf(L"%ls", line.c_str());
+        std::wprintf(L"%ls", base::style_end().c_str());
+        std::wprintf(L"\n");
     }
 };
 
