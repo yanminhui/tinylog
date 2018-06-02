@@ -2,7 +2,7 @@
  _____ _             _
 |_   _(_)_ __  _   _| |    ___   __ _
   | | | | '_ \| | | | |   / _ \ / _` | TinyLog for Modern C++
-  | | | | | | | |_| | |__| (_) | (_| | version 1.1.3
+  | | | | | | | |_| | |__| (_) | (_| | version 1.1.4
   |_| |_|_| |_|\__, |_____\___/ \__, | https://github.com/yanminhui/tinylog
                |___/            |___/
 
@@ -103,6 +103,7 @@ SOFTWARE.
  * 3) 修正：wcstombs 依赖全局 locale, std::cout 异常v1.1.1 2018/05/28 yanmh
  * 4) 优化：解耦终端颜色控制日志槽 v1.1.2 ---------------- 2018/06/01 yanmh
  * 5) 优化：支持 wchar_t/char 混合输出 v1.1.3 ------------ 2018/06/02 yanmh
+ * 6) 优化: 模板参数可配互斥类型，支持槽过滤级别 v1.1.4 -- 2018/06/02 yanmh
  */
 
 #ifndef TINYTINYLOG_HPP
@@ -136,7 +137,7 @@ SOFTWARE.
 // 版本信息
 #define TINYLOG_VERSION_MAJOR 1
 #define TINYLOG_VERSION_MINOR 1
-#define TINYLOG_VERSION_PATCH 3
+#define TINYLOG_VERSION_PATCH 4
 
 //--------------|
 // 用户可控制   |
@@ -1408,26 +1409,38 @@ public:
     virtual ~basic_sink_base() = default;
 
 public:
-    explicit operator bool()
+    explicit operator bool() const
     {
         return is_open();
     }
-
-    bool operator!()
+    bool operator!() const
     {
         return !is_open();
     }
 
+    void set_level(level lvl)
+    {
+        lvl_ = lvl;
+    }
+    level get_level() const
+    {
+        return lvl_;
+    }
+
     // 是否打开准备好接收数据
-    virtual bool is_open() = 0;
+    virtual bool is_open() const = 0;
 
     // 消费数据
     virtual void consume(basic_record<char_type> const& r) = 0;
     virtual void consume(basic_record_d<char_type> const& r) = 0;
+
+private:
+    level lvl_ = level::fatal;
 };
 
 template <class charT, class layoutT = default_layout
-          , class formatterT = formatter<layoutT>>
+    , class mutexT = mutex_t
+    , class formatterT = formatter<layoutT>>
 class basic_sink : public basic_sink_base<charT>
 {
 public:
@@ -1435,25 +1448,29 @@ public:
     using char_type = typename base::char_type;
     using string_t  = typename base::string_t;
 
-    void consume(basic_record<char_type> const& r) final
+    void consume(basic_record<char_type> const& r) override final
     {
         auto msg = formatterT::format(r);
         write(r.lvl, msg);
     }
 
-    void consume(basic_record_d<char_type> const& r) final
+    void consume(basic_record_d<char_type> const& r) override final
     {
         auto msg = formatterT::format(r);
         write(r.lvl, msg);
     }
 
-protected:
-    virtual void write(level lvl, string_t& msg) final
+private:
+    void write(level lvl, string_t& msg)
     {
-        before_write(lvl, msg);
-        // 保护中...
+        if (base::get_level() > lvl)
         {
-            std::lock_guard<mutex_t> lock(mtx_);
+            return ;
+        }
+
+        before_write(lvl, msg);
+        {   // 保护中...
+            std::lock_guard<mutexT> lock(mtx_);
 
             before_writing(lvl, msg);
             writing(lvl, msg);
@@ -1487,22 +1504,32 @@ protected:
     }
 
 private:
-    mutex_t mtx_;
+    mutexT mtx_;
 };
 
-// 终端槽
+//----------------|
+// Console Sink   |
+//----------------|
+
 template <class charT, class layoutT = default_layout
-          , class formatterT = formatter<layoutT>>
-class basic_console_sink_base : public basic_sink<charT, layoutT, formatterT>
+    , class mutexT = mutex_t
+    , class formatterT = formatter<layoutT>>
+class basic_console_sink
+    : public basic_sink<charT, layoutT, mutexT, formatterT>
 {
 public:
-    using base      = basic_sink<charT, layoutT, formatterT>;
+    using base      = basic_sink<charT, layoutT, mutexT, formatterT>;
     using char_type = typename base::char_type;
     using string_t  = typename base::string_t;
 
-    virtual bool is_open()
+    bool is_open() const override final
     {
         return true;
+    }
+
+    void enable_color(bool enable = true)
+    {
+        enable_color_ = enable;
     }
 
 protected:
@@ -1516,17 +1543,45 @@ protected:
         }
     }
 
-    virtual void write_line(level lvl, string_t const& line) = 0;
+private:
+    template <class lineCharT, typename std::enable_if
+        <std::is_same<lineCharT, char>::value, int>::type = 0>
+    void write_line(level lvl, std::basic_string<lineCharT> const& line) const
+    {
+        if (!enable_color_)
+        {
+            std::printf("%s\n", line.c_str());
+            return ;
+        }
 
-protected:
+        std::printf("%s", style_beg(lvl).c_str());
+        std::printf("%s", line.c_str());
+        std::printf("%s", style_end().c_str());
+        std::printf("\n");
+    }
+
+    template <class lineCharT, typename std::enable_if
+        <std::is_same<lineCharT, wchar_t>::value, int>::type = 0>
+    void write_line(level lvl, std::basic_string<lineCharT> const& line) const
+    {
+        if (!enable_color_)
+        {
+            std::wprintf(L"%ls\n", line.c_str());
+            return ;
+        }
+
+        std::wprintf(L"%ls", style_beg(lvl).c_str());
+        std::wprintf(L"%ls", line.c_str());
+        std::wprintf(L"%ls", style_end().c_str());
+        std::wprintf(L"\n");
+    }
+
+private:
     string_t style_beg(level lvl) const
     {
         using namespace detail;
 
         string_t color_text;
-
-#if !defined(TINYLOG_DISABLE_CONSOLE_COLOR)
-
         switch (lvl)
         {
         case level::trace:
@@ -1554,79 +1609,39 @@ protected:
         default:
             break;
         }
-
-#endif
-
         return color_text;
     }
 
     string_t style_end() const
     {
         string_t color_text;
-
-#if !defined(TINYLOG_DISABLE_CONSOLE_COLOR)
-
         detail::style(color_text);
-
-#endif
-
         return color_text;
     }
+
+private:
+#if defined(TINYLOG_DISABLE_CONSOLE_COLOR)
+    bool enable_color_ = false;
+#else
+    bool enable_color_ = true;
+#endif
 };
+
+using console_sink  = basic_console_sink<char>;
+using wconsole_sink = basic_console_sink<wchar_t>;
+
+//----------------|
+// File Sink      |
+//----------------|
 
 template <class charT, class layoutT = default_layout
-          , class formatterT = formatter<layoutT>>
-class basic_console_sink : public basic_console_sink_base<charT, layoutT, formatterT>
+    , class mutexT = mutex_t
+    , class formatterT = formatter<layoutT>>
+class basic_file_sink
+    : public basic_sink<charT, layoutT, mutexT, formatterT>
 {
 public:
-    using base      = basic_console_sink_base<charT, layoutT, formatterT>;
-    using char_type = typename base::char_type;
-    using string_t  = typename base::string_t;
-
-protected:
-    void write_line(level lvl, string_t const& line) override final
-    {
-        std::printf("%s", base::style_beg(lvl).c_str());
-        std::printf("%s", line.c_str());
-        std::printf("%s", base::style_end().c_str());
-        std::printf("\n");
-    }
-};
-
-template <class layoutT, class formatterT>
-class basic_console_sink<wchar_t, layoutT, formatterT>
-    : public basic_console_sink_base<wchar_t, layoutT, formatterT>
-{
-public:
-    using base      = basic_console_sink_base<wchar_t, layoutT, formatterT>;
-    using char_type = typename base::char_type;
-    using string_t  = typename base::string_t;
-
-protected:
-    void write_line(level lvl, string_t const& line) override final
-    {
-        std::wprintf(L"%ls", base::style_beg(lvl).c_str());
-        std::wprintf(L"%ls", line.c_str());
-        std::wprintf(L"%ls", base::style_end().c_str());
-        std::wprintf(L"\n");
-    }
-};
-
-template <class layoutT = default_layout
-          , class formatterT = formatter<layoutT>>
-using console_sink  = basic_console_sink<char, layoutT, formatterT>;
-
-template <class layoutT = default_layout
-          , class formatterT = formatter<layoutT>>
-using wconsole_sink = basic_console_sink<wchar_t, layoutT, formatterT>;
-
-// 文件槽
-template <class charT, class layoutT = default_layout
-          , class formatterT = formatter<layoutT>>
-class basic_file_sink : public basic_sink<charT, layoutT, formatterT>
-{
-public:
-    using base      = basic_sink<charT, layoutT, formatterT>;
+    using base      = basic_sink<charT, layoutT, mutexT, formatterT>;
     using char_type = typename base::char_type;
     using string_t  = typename base::string_t;
 
@@ -1648,13 +1663,13 @@ public:
         ostrm_.imbue(loc);
     }
 
-    virtual bool is_open()
+    bool is_open() const override final
     {
         return ostrm_ ? true : false;
     }
 
 protected:
-    virtual void before_writing(level lvl, string_t& msg)
+    void before_writing(level lvl, string_t& msg) override final
     {
         std::uintmax_t const curr_file_size = ostrm_.tellp();
         if (curr_file_size + msg.size() < max_file_size_)
@@ -1663,7 +1678,6 @@ protected:
         }
 
         ostrm_.close();
-
         try
         {
             ::tinylog::detail::file_rename(filename_, filename_ + ".bak");
@@ -1672,18 +1686,16 @@ protected:
         {
             /* 吞下苦果，避免应用异常退出。*/
         }
-
         ostrm_.clear();
         ostrm_.open(filename_, std::ios_base::out);
     }
 
-    virtual void writing(level lvl, string_t& msg)
+    void writing(level lvl, string_t& msg) override final
     {
         if (!is_open())
         {
             return;
         }
-
         ostrm_.seekp(0, std::ios_base::end);
         ostrm_.write(msg.data(), msg.size());
         ostrm_.flush();
@@ -1695,21 +1707,21 @@ private:
     std::basic_ofstream<charT> ostrm_;
 };
 
-template <class layoutT = default_layout
-          , class formatterT = formatter<layoutT>>
-using file_sink     = basic_file_sink<char, layoutT, formatterT>;
+using file_sink = basic_file_sink<char>;
+using wfile_sink= basic_file_sink<wchar_t>;
 
-template <class layoutT = default_layout
-          , class formatterT = formatter<layoutT>>
-using wfile_sink    = basic_file_sink<wchar_t, layoutT, formatterT>;
+//----------------|
+// U8 File Sink   |
+//----------------|
 
-// 文件槽(utf-8)
 template <class charT, class layoutT = default_layout
-          , class formatterT = formatter<layoutT>>
-class basic_u8_file_sink : public basic_file_sink<charT, layoutT, formatterT>
+    , class mutexT = mutex_t
+    , class formatterT = formatter<layoutT>>
+class basic_u8_file_sink
+    : public basic_file_sink<charT, layoutT, mutexT, formatterT>
 {
 public:
-    using base      = basic_file_sink<charT, layoutT, formatterT>;
+    using base      = basic_file_sink<charT, layoutT, mutexT, formatterT>;
     using char_type = typename base::char_type;
     using string_t  = typename base::string_t;
 
@@ -1727,43 +1739,16 @@ public:
     }
 
 protected:
-    virtual void before_write(level lvl, string_t& msg)
+    void before_write(level lvl, string_t& msg) override final
     {
+        // convert only if string_t is narrow type.
         string_t const from = msg;
         code_converter<u8string>::to_string(msg, from);
     }
 };
 
-template <class layoutT, class formatterT>
-class basic_u8_file_sink<wchar_t, layoutT, formatterT>
-    : public basic_file_sink<wchar_t, layoutT, formatterT>
-{
-public:
-    using base      = basic_file_sink<wchar_t, layoutT, formatterT>;
-    using char_type = typename base::char_type;
-    using string_t  = typename base::string_t;
-
-public:
-    explicit basic_u8_file_sink
-    (char const* filename
-     , std::uintmax_t max_file_size
-     = base::default_max_file_size
-       , std::ios_base::openmode mode
-     = std::ios_base::app
-       , std::locale const& loc
-     = std::locale(std::locale(""), new std::codecvt_utf8<wchar_t>))
-        : base(filename, max_file_size, mode, loc)
-    {
-    }
-};
-
-template <class layoutT = default_layout
-          , class formatterT = formatter<layoutT>>
-using u8_file_sink = basic_u8_file_sink<char, layoutT, formatterT>;
-
-template <class layoutT = default_layout
-          , class formatterT = formatter<layoutT>>
-using wu8_file_sink = basic_u8_file_sink<wchar_t, layoutT, formatterT>;
+using u8_file_sink = basic_u8_file_sink<char>;
+using wu8_file_sink = basic_u8_file_sink<wchar_t>;
 
 }  // namespace sink
 
@@ -1799,13 +1784,13 @@ struct sink_adapter_base
 template <class charT>
 struct basic_sink_adapter : public sink_adapter_base
 {
-    using char_type = typename std::conditional<std::is_same
+    using char_type     = typename std::conditional<std::is_same
         <charT, char>::value, char, wchar_t>::type;
-    using extern_type = typename std::conditional<!std::is_same
+    using extern_type   = typename std::conditional<!std::is_same
         <charT, char>::value, char, wchar_t>::type;
 
-    using string_t = std::basic_string<char_type>;
-    using sink_t = std::shared_ptr<sink::basic_sink_base<char_type>>;
+    using string_t  = std::basic_string<char_type>;
+    using sink_t    = std::shared_ptr<sink::basic_sink_base<char_type>>;
 
 public:
     explicit basic_sink_adapter(sink_t sk) : sink_(sk)
