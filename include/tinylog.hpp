@@ -2,7 +2,7 @@
  _____ _             _
 |_   _(_)_ __  _   _| |    ___   __ _
   | | | | '_ \| | | | |   / _ \ / _` | TinyLog for Modern C++
-  | | | | | | | |_| | |__| (_) | (_| | version 1.1.1
+  | | | | | | | |_| | |__| (_) | (_| | version 1.1.3
   |_| |_|_| |_|\__, |_____\___/ \__, | https://github.com/yanminhui/tinylog
                |___/            |___/
 
@@ -102,6 +102,7 @@ SOFTWARE.
  * 2) 修正：wlout 拼写错误，layout using 错误. ----------- 2018/05/28 yanmh
  * 3) 修正：wcstombs 依赖全局 locale, std::cout 异常v1.1.1 2018/05/28 yanmh
  * 4) 优化：解耦终端颜色控制日志槽 v1.1.2 ---------------- 2018/06/01 yanmh
+ * 5) 优化：支持 wchar_t/char 混合输出 v1.1.3 ------------ 2018/06/02 yanmh
  */
 
 #ifndef TINYTINYLOG_HPP
@@ -135,7 +136,7 @@ SOFTWARE.
 // 版本信息
 #define TINYLOG_VERSION_MAJOR 1
 #define TINYLOG_VERSION_MINOR 1
-#define TINYLOG_VERSION_PATCH 1
+#define TINYLOG_VERSION_PATCH 3
 
 //--------------|
 // 用户可控制   |
@@ -1177,20 +1178,20 @@ enum class foreground
 {
 #if defined(TINYLOG_WINDOWS_API)
 
-    white       = FOREGROUND_BLUE | FOREGROUND_GREEN | FOREGROUND_RED 
-    , cyan      = FOREGROUND_BLUE | FOREGROUND_GREEN 
+    white       = FOREGROUND_BLUE | FOREGROUND_GREEN | FOREGROUND_RED
+    , cyan      = FOREGROUND_BLUE | FOREGROUND_GREEN
     , green     = FOREGROUND_GREEN
     , yellow    = FOREGROUND_GREEN | FOREGROUND_RED
     , red       = FOREGROUND_RED
 
-#else 
-    
+#else
+
     white       = 37
     , cyan      = 36
     , green     = 32
     , yellow    = 33
     , red       = 31
-    
+
 #endif  // TINYLOG_WINDOWS_API
 };
 
@@ -1198,20 +1199,20 @@ enum class background
 {
 #if defined(TINYLOG_WINDOWS_API)
 
-    white       = BACKGROUND_BLUE | BACKGROUND_GREEN | BACKGROUND_RED 
-    , cyan      = BACKGROUND_BLUE | BACKGROUND_GREEN 
+    white       = BACKGROUND_BLUE | BACKGROUND_GREEN | BACKGROUND_RED
+    , cyan      = BACKGROUND_BLUE | BACKGROUND_GREEN
     , green     = BACKGROUND_GREEN
     , yellow    = BACKGROUND_GREEN | BACKGROUND_RED
     , red       = BACKGROUND_RED
 
-#else 
-    
+#else
+
     white       = 47
     , cyan      = 46
     , green     = 42
     , yellow    = 43
     , red       = 41
-    
+
 #endif  // TINYLOG_WINDOWS_API
 };
 
@@ -1221,12 +1222,12 @@ enum class emphasize
 
     normal      = 0
     , bold      = FOREGROUND_INTENSITY
-    
+
 #else
-    
+
     normal      = 22
     , bold      = 1
-    
+
 #endif  // TINYLOG_WINDOWS_API
 };
 
@@ -1239,10 +1240,10 @@ struct rgb
 
 template <class charT>
 struct basic_style_impl
-{    
+{
     using char_type     = charT;
     using string_t      = std::basic_string<char_type>;
-    
+
     static rgb curr_rgb(bool raw = false)
     {
 #if defined(TINYLOG_WINDOWS_API)
@@ -1250,19 +1251,19 @@ struct basic_style_impl
         CONSOLE_SCREEN_BUFFER_INFO info;
         auto handle = ::GetStdHandle(STD_OUTPUT_HANDLE);
         ::GetConsoleScreenBufferInfo(handle, &info);
-        
+
         auto fg = static_cast<foreground>(info.wAttributes & 0x07);
         auto bg = static_cast<background>(info.wAttributes & 0x70);
         auto em = static_cast<emphasize>(info.wAttributes & 0x08);
 
-#else 
+#else
 
         auto fg = raw ? static_cast<foreground>(39) : curr_.fg;
         auto bg = raw ? static_cast<background>(49) : curr_.bg;
         auto em = raw ? static_cast<emphasize>(22) : curr_.em;
-        
+
 #endif  // TINYLOG_WINDOWS_API
-     
+
         if (raw)
         {
             // nothing to do.
@@ -1271,7 +1272,7 @@ struct basic_style_impl
         {
             reset_ = false;
         }
-        
+
         return { fg, bg, em };
     }
 
@@ -1280,15 +1281,15 @@ struct basic_style_impl
         bool raw = true;
         return curr_rgb(raw);
     }
-    
+
     static string_t set_rgb(rgb const& c)
-    {                
+    {
 #if defined(TINYLOG_WINDOWS_API)
 
         CONSOLE_SCREEN_BUFFER_INFO info;
         auto handle = ::GetStdHandle(STD_OUTPUT_HANDLE);
         ::GetConsoleScreenBufferInfo(handle, &info);
-        
+
         info.wAttributes &= 0xFF80;
         using attr_t    = decltype(info.wAttributes);
         auto fg         = static_cast<attr_t>(c.fg);
@@ -1300,11 +1301,11 @@ struct basic_style_impl
         info.wAttributes |= em;
         ::SetConsoleTextAttribute(handle, info.wAttributes);
         return string_t();
-        
+
 #else
-    
+
         curr_ = c;
-   
+
         std::basic_ostringstream<char_type> oss;
         auto calc = [&oss](std::size_t n)
         {
@@ -1313,18 +1314,18 @@ struct basic_style_impl
         calc(static_cast<std::size_t>(curr_.fg));
         calc(static_cast<std::size_t>(curr_.bg));
         calc(static_cast<std::size_t>(curr_.em));
-        
+
         return oss.str();
-        
+
 #endif  // TINYLOG_WINDOWS_API
     }
-    
+
     static string_t set_rgb_raw()
     {
         reset_ = true;
         return set_rgb(default_);
     }
-    
+
 private:
     static rgb default_;
     static bool reset_;
@@ -1558,7 +1559,7 @@ protected:
 
         return color_text;
     }
-    
+
     string_t style_end() const
     {
         string_t color_text;
@@ -1601,7 +1602,7 @@ public:
     using char_type = typename base::char_type;
     using string_t  = typename base::string_t;
 
-protected: 
+protected:
     void write_line(level lvl, string_t const& line) override final
     {
         std::wprintf(L"%ls", base::style_beg(lvl).c_str());
@@ -1766,46 +1767,134 @@ using wu8_file_sink = basic_u8_file_sink<wchar_t, layoutT, formatterT>;
 
 }  // namespace sink
 
+//////////////////////////////////////////////////////////////////////////////
+//
+// 槽适配器
+//
+//////////////////////////////////////////////////////////////////////////////
 namespace detail
 {
-//
-// 输出槽管理:
-//     只被 logger 使用，只使用 basic_sink<>.
-//
-template <class charT>
-class sink_manager
+
+struct sink_adapter_base
 {
-public:
-    using char_type = charT;
-    using string_t  = std::basic_string<char_type>;
-    using sink_t    = std::shared_ptr<sink::basic_sink<charT>>;
+    explicit operator bool() const
+    {
+        return is_open();
+    }
+
+    bool operator!() const
+    {
+        return !is_open();
+    }
+
+    virtual bool is_open() const = 0;
+
+    virtual void consume(basic_record<char> const& r) = 0;
+    virtual void consume(basic_record<wchar_t> const& r) = 0;
+
+    virtual void consume(basic_record_d<char> const& r) = 0;
+    virtual void consume(basic_record_d<wchar_t> const& r) = 0;
+};
+
+template <class charT>
+struct basic_sink_adapter : public sink_adapter_base
+{
+    using char_type = typename std::conditional<std::is_same
+        <charT, char>::value, char, wchar_t>::type;
+    using extern_type = typename std::conditional<!std::is_same
+        <charT, char>::value, char, wchar_t>::type;
+
+    using string_t = std::basic_string<char_type>;
+    using sink_t = std::shared_ptr<sink::basic_sink_base<char_type>>;
 
 public:
-    static void add_sink(sink_t sink)
+    explicit basic_sink_adapter(sink_t sk) : sink_(sk)
     {
-        sinks_.emplace_back(sink);
+    }
+
+public:
+    bool is_open() const override final
+    {
+        return sink_ && sink_->is_open();
+    }
+
+    void consume(basic_record<char_type> const& r) override
+    {
+        sink_->consume(r);
+    }
+    void consume(basic_record<extern_type> const& r) override
+    {
+        using record_t = basic_record<char_type>;
+
+        string_t m;
+        code_converter<>::to_string(m, r.message);
+
+        record_t to(r.tv_sec, r.lvl, r.id, m);
+        sink_->consume(to);
+    }
+
+    void consume(basic_record_d<char_type> const& r) override
+    {
+        sink_->consume(r);
+    }
+    void consume(basic_record_d<extern_type> const& r) override
+    {
+        using record_t = basic_record_d<char_type>;
+
+        string_t m;
+        code_converter<>::to_string(m, r.message);
+
+        string_t fn;
+        code_converter<>::to_string(fn, r.file);
+
+        string_t fun;
+        code_converter<>::to_string(fun, r.func);
+
+        record_t to(r.tv_sec, r.lvl, r.id, m, fn, r.line, fun);
+        sink_->consume(to);
+    }
+
+private:
+    sink_t sink_;
+};
+
+//
+// 输出槽管理:
+//     只被 logger 使用，只使用 sink_adapter_base.
+//
+class sink_manager
+{
+    using sink_adapter_t = std::shared_ptr<sink_adapter_base>;
+
+public:
+    template <class sinkT
+        , class charT = typename sinkT::element_type::char_type>
+    static void add_sink(sinkT sk)
+    {
+        using char_type = charT;
+        auto sk_adapter = std::make_shared<basic_sink_adapter<char_type>>(sk);
+        sink_adapters_.emplace_back(sk_adapter);
     }
 
     template <class recordT>
     static void consume(recordT const& r)
     {
-        for (auto& sk : sinks_)
+        for (auto& sk_adapter : sink_adapters_)
         {
-            if (!*sk)
+            if (!*sk_adapter)
             {
                 continue;
             }
-            sk->consume(r);
+            sk_adapter->consume(r);
         }
     }
 
 private:
-    static std::list<sink_t> sinks_;
+    static std::list<sink_adapter_t> sink_adapters_;
 };
 
 // 全局静态数据
-template <class charT>
-std::list<typename sink_manager<charT>::sink_t> sink_manager<charT>::sinks_;
+std::list<sink_manager::sink_adapter_t> sink_manager::sink_adapters_;
 
 }  // namesapce detail
 
@@ -1834,7 +1923,7 @@ public:
     static std::shared_ptr<T> add_sink(Args&&... args)
     {
         auto sk = std::make_shared<T>(std::forward<Args>(args)...);
-        detail::sink_manager<typename T::char_type>::add_sink(sk);
+        detail::sink_manager::add_sink(sk);
         return sk;
     }
 
@@ -1880,8 +1969,7 @@ public:
     template <class recordT>
     static void push_back(recordT const& r)
     {
-        using char_type = typename recordT::char_type;
-        detail::sink_manager<char_type>::consume(r);
+        detail::sink_manager::consume(r);
     }
 
 private:
