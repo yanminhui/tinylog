@@ -63,16 +63,16 @@ int main(int argc, char* argv[])
     using namespace tinylog;
 
     //--------------|
-    // 设置          |
+    // 设置         |
     //--------------|
     std::locale loc("");
     std::locale::global(loc);
 
     // 安装输出槽: @see std::make_shared<>
-    logger::add_sink<sink::console_sink<default_layout>>();
+    logger::add_sink<sink::console_sink>();
 
     constexpr auto max_file_size = 5 * 1024 * 1024; // 5MB
-    logger::add_sink<sink::u8_file_sink<>>("default.log", max_file_size);
+    logger::add_sink<sink::u8_file_sink>("default.log", max_file_size);
 
     // 过滤日志级别
     logger::set_level(debug);
@@ -81,7 +81,7 @@ int main(int argc, char* argv[])
     lout_d << logger::title();
 
     //--------------|
-    // 输出日志       |
+    // 输出日志     |
     //--------------|
     // 普通文本
     lout(info) << "Weclome to TinyLog !!!" << std::endl;

@@ -69,10 +69,10 @@ int main(int argc, char* argv[])
     std::locale::global(loc);
 
     // Setup sink: @see std::make_shared<>
-    logger::add_sink<sink::console_sink<default_layout>>();
+    logger::add_sink<sink::console_sink>();
 
     constexpr auto max_file_size = 5 * 1024 * 1024; // 5MB
-    logger::add_sink<sink::u8_file_sink<>>("default.log", max_file_size);
+    logger::add_sink<sink::u8_file_sink>("default.log", max_file_size);
 
     // Filter level
     logger::set_level(debug);
