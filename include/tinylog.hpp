@@ -1435,7 +1435,7 @@ public:
     virtual void consume(basic_record_d<char_type> const& r) = 0;
 
 private:
-    level lvl_ = level::fatal;
+    level lvl_ = level::trace;
 };
 
 template <class charT, class layoutT = default_layout
