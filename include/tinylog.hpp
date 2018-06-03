@@ -2,7 +2,7 @@
  _____ _             _
 |_   _(_)_ __  _   _| |    ___   __ _
   | | | | '_ \| | | | |   / _ \ / _` | TinyLog for Modern C++
-  | | | | | | | |_| | |__| (_) | (_| | version 1.1.5
+  | | | | | | | |_| | |__| (_) | (_| | version 1.1.6
   |_| |_|_| |_|\__, |_____\___/ \__, | https://github.com/yanminhui/tinylog
                |___/            |___/
 
@@ -105,6 +105,7 @@ SOFTWARE.
  * 5) 优化：支持 wchar_t/char 混合输出 v1.1.3 ------------ 2018/06/02 yanmh
  * 6) 优化: 模板参数可配互斥类型，支持槽过滤级别 v1.1.4 -- 2018/06/02 yanmh
  * 7) 优化: 日志时间精确到微秒 v1.1.5 -------------------- 2018/06/03 yanmh
+ * 8) 优化: 支持条件日志 l[w]printf_if/[w]lout_if  v1.1.6  2018/06/03 yanmh
  */
 
 #ifndef TINYTINYLOG_HPP
@@ -139,7 +140,7 @@ SOFTWARE.
 // 版本信息
 #define TINYLOG_VERSION_MAJOR 1
 #define TINYLOG_VERSION_MINOR 1
-#define TINYLOG_VERSION_PATCH 5
+#define TINYLOG_VERSION_PATCH 6
 
 //--------------|
 // 用户可控制   |
@@ -270,6 +271,14 @@ SOFTWARE.
         , ::tinylog::a2w(TINYLOG_FUNCTION))
 
 #endif  // NDEBUG
+
+// 条件日志
+#define lprintf_if(lvl, boolexpr, fmt, ...) \
+    ((boolexpr) && (lprintf(lvl, fmt, ##__VA_ARGS__)))
+#define lwprintf_if(lvl, boolexpr, fmt, ...) \
+    ((boolexpr) && (lwprintf(lvl, fmt, ##__VA_ARGS__)))
+#define lout_if(lvl, boolexpr) (boolexpr) && lout(lvl)
+#define wlout_if(lvl, boolexpr) (boolexpr) && wlout(lvl)
 
 // 简写别名
 #define lprintf_t(fmt, ...) lprintf(::tinylog::trace, fmt, ##__VA_ARGS__)
