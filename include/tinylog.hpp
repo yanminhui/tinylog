@@ -2,7 +2,7 @@
  _____ _             _
 |_   _(_)_ __  _   _| |    ___   __ _
   | | | | '_ \| | | | |   / _ \ / _` | TinyLog for Modern C++
-  | | | | | | | |_| | |__| (_) | (_| | version 1.1.4
+  | | | | | | | |_| | |__| (_) | (_| | version 1.1.5
   |_| |_|_| |_|\__, |_____\___/ \__, | https://github.com/yanminhui/tinylog
                |___/            |___/
 
@@ -104,6 +104,7 @@ SOFTWARE.
  * 4) 优化：解耦终端颜色控制日志槽 v1.1.2 ---------------- 2018/06/01 yanmh
  * 5) 优化：支持 wchar_t/char 混合输出 v1.1.3 ------------ 2018/06/02 yanmh
  * 6) 优化: 模板参数可配互斥类型，支持槽过滤级别 v1.1.4 -- 2018/06/02 yanmh
+ * 7) 优化: 日志时间精确到微秒 v1.1.5 -------------------- 2018/06/03 yanmh
  */
 
 #ifndef TINYTINYLOG_HPP
@@ -115,6 +116,7 @@ SOFTWARE.
 #include <ctime>
 
 #include <atomic>
+#include <chrono>
 #include <codecvt>
 #include <fstream>
 #include <functional>
@@ -137,7 +139,7 @@ SOFTWARE.
 // 版本信息
 #define TINYLOG_VERSION_MAJOR 1
 #define TINYLOG_VERSION_MINOR 1
-#define TINYLOG_VERSION_PATCH 4
+#define TINYLOG_VERSION_PATCH 5
 
 //--------------|
 // 用户可控制   |
@@ -182,7 +184,7 @@ SOFTWARE.
 #define TINYLOG_LFW TINYLOG_CRT_WIDE(TINYLOG_LF)
 
 // 时间格式: 2018/05/20 19:30:27
-#define TINYLOG_DATETIME_FMT "%Y/%m/%d %H:%M:%S"
+#define TINYLOG_DATETIME_FMT "%Y/%m/%d %H:%M:%S."
 #define TINYLOG_DATETIME_FMTW TINYLOG_CRT_WIDE(TINYLOG_DATETIME_FMT)
 
 #if defined(TINYLOG_USE_SIMPLIFIED_CHINA)
@@ -343,10 +345,22 @@ struct null_mutex
     }
 };
 
-// get current time seconds
-inline std::time_t curr_time()
+// get current time
+struct time_value
 {
-    return std::time(nullptr);
+    std::time_t tv_sec;
+    std::size_t tv_usec;
+};
+
+inline time_value curr_time()
+{
+    using namespace std::chrono;
+
+    auto const tp   = system_clock::now();
+    auto const dtn  = tp.time_since_epoch();
+    auto const sec  = duration_cast<seconds>(dtn).count();
+    auto const usec = duration_cast<microseconds>(dtn).count() % 1000000;
+    return { sec, static_cast<std::size_t>(usec) };
 }
 
 // get current thread id
@@ -370,24 +384,32 @@ inline std::size_t curr_thrd_id()
 // 返回 std::basic_string<charT>
 template <class strftimeT, class charT>
 std::basic_string<charT>
-strftime_impl(strftimeT strftime_cb, charT const* fmt, std::time_t rawtime)
+strftime_impl(strftimeT strftime_cb, charT const* fmt, time_value const& tv)
 {
-    constexpr auto time_bufsize = 20;
+    constexpr auto time_bufsize = 21;
     std::basic_string<charT> time_buffer(time_bufsize, '\0');
 
     struct tm timeinfo;
 
 #if defined(TINYLOG_WINDOWS_API)
-    ::localtime_s(&timeinfo, &rawtime);
+    ::localtime_s(&timeinfo, &tv.tv_sec);
 #else
-    ::localtime_r(&rawtime, &timeinfo);
+    ::localtime_r(&tv.tv_sec, &timeinfo);
 #endif // TINYLOG_WINDOWS_API
 
     auto const n = strftime_cb(const_cast<charT*>(time_buffer.data())
                                , time_bufsize, fmt, &timeinfo);
     time_buffer.resize(n);
 
-    return time_buffer;
+    // append microseconds
+    std::basic_string<charT> fmt_s(fmt);
+    std::basic_ostringstream<charT> oss;
+    if (!fmt_s.empty() && *(fmt_s.rbegin()) == oss.widen('.'))
+    {
+        oss.imbue(std::locale::classic());
+        oss << std::setfill(oss.widen('0')) << std::setw(6) << tv.tv_usec;
+    }
+    return time_buffer + oss.str();
 }
 
 // 确保 l[w]printf 可变参数有效
@@ -439,8 +461,9 @@ struct sprintf_constructor<char>
     template <class... Args>
     static void construct(string_t& s, string_t const& fmt, Args&&... args)
     {
+#if !defined(NDEBUG)
         ensure_va_args_safe_A(std::forward<Args>(args)...);
-
+#endif
         for (int n = BUFSIZ; true; n += BUFSIZ)
         {
             s.resize(n--);
@@ -470,8 +493,9 @@ struct sprintf_constructor<wchar_t>
     template <class... Args>
     static void construct(string_t& s, string_t const& fmt, Args&&... args)
     {
+#if !defined(NDEBUG)
         ensure_va_args_safe_W(std::forward<Args>(args)...);
-
+#endif
         for (int n = BUFSIZ; true; n += BUFSIZ)
         {
             s.resize(n--);
@@ -932,8 +956,9 @@ struct basic_record
     using char_type = charT;
     using string_t  = std::basic_string<char_type>;
 
-    explicit basic_record(std::time_t t, level l, std::uintmax_t thrd_id
-    , string_t const& m) : tv_sec(t), lvl(l), id(thrd_id), message(m)
+    explicit basic_record(detail::time_value const& t, level l
+                          , std::uintmax_t thrd_id, string_t const& m)
+        : tv(t), lvl(l), id(thrd_id), message(m)
     {}
 
     explicit basic_record(level l, string_t const& m)
@@ -941,13 +966,13 @@ struct basic_record
     {}
 
     explicit basic_record(level l)
-        : tv_sec(detail::curr_time()), lvl(l), id(detail::curr_thrd_id())
+        : tv(detail::curr_time()), lvl(l), id(detail::curr_thrd_id())
     {}
 
-    std::time_t     tv_sec;
-    level           lvl;
-    std::uintmax_t  id;
-    string_t        message;
+    detail::time_value  tv;
+    level               lvl;
+    std::uintmax_t      id;
+    string_t            message;
 };
 
 using record  = basic_record<char>;
@@ -961,7 +986,7 @@ struct basic_record_d : public basic_record<charT>
     using char_type = typename base::char_type;
     using string_t  = typename base::string_t;
 
-    explicit basic_record_d(std::time_t t, level l
+    explicit basic_record_d(detail::time_value const& t, level l
                             , std::uintmax_t thrd_id, string_t const& m
                             , string_t const& fn, std::size_t ln
                             , string_t const& fun)
@@ -1081,7 +1106,7 @@ protected:
 private:
     static string_t format_time(record const& r)
     {
-        return strftime_impl(std::strftime, TINYLOG_DATETIME_FMT, r.tv_sec);
+        return strftime_impl(std::strftime, TINYLOG_DATETIME_FMT, r.tv);
     }
 };
 
@@ -1124,7 +1149,7 @@ protected:
 private:
     static string_t format_time(record const& r)
     {
-        return strftime_impl(std::wcsftime, TINYLOG_DATETIME_FMTW, r.tv_sec);
+        return strftime_impl(std::wcsftime, TINYLOG_DATETIME_FMTW, r.tv);
     }
 };
 
@@ -1814,7 +1839,7 @@ public:
         string_t m;
         code_converter<>::to_string(m, r.message);
 
-        record_t to(r.tv_sec, r.lvl, r.id, m);
+        record_t to(r.tv, r.lvl, r.id, m);
         sink_->consume(to);
     }
 
@@ -1835,7 +1860,7 @@ public:
         string_t fun;
         code_converter<>::to_string(fun, r.func);
 
-        record_t to(r.tv_sec, r.lvl, r.id, m, fn, r.line, fun);
+        record_t to(r.tv, r.lvl, r.id, m, fn, r.line, fun);
         sink_->consume(to);
     }
 
@@ -2370,12 +2395,11 @@ operator<<(std::basic_ostream<charT>& out
 // stl::container
 template <class charT, class Container>
 inline typename std::enable_if
-<::tinylog::detail::support_free_begin_stl<Container>::value
-&& !std::is_same<Container
-, std::basic_string<typename Container::value_type>>::value
-        , std::basic_ostream<charT>&>::type
-        operator<<(std::basic_ostream<charT>& out
-                   , Container const& seq)
+    <::tinylog::detail::support_free_begin_stl<Container>::value
+    && !std::is_same<Container
+        , std::basic_string<typename Container::value_type>>::value
+    , std::basic_ostream<charT>&>::type
+operator<<(std::basic_ostream<charT>& out, Container const& seq)
 {
     using namespace ::tinylog::detail;
 
