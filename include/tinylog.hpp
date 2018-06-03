@@ -2,7 +2,7 @@
  _____ _             _
 |_   _(_)_ __  _   _| |    ___   __ _
   | | | | '_ \| | | | |   / _ \ / _` | TinyLog for Modern C++
-  | | | | | | | |_| | |__| (_) | (_| | version 1.1.6
+  | | | | | | | |_| | |__| (_) | (_| | version 1.1.7
   |_| |_|_| |_|\__, |_____\___/ \__, | https://github.com/yanminhui/tinylog
                |___/            |___/
 
@@ -59,6 +59,9 @@ SOFTWARE.
  * //           UTF-8 文件槽, 产生以 UTF-8 格式编码的日志文件,
  * //     其它行为与 [w]file_sink 一样.
  * //
+ * //     - [w]msvc_sink
+ * //           visual studio debug console output.
+ * //
  * logger::add_sink<sink::wfile_sink<default_layout>>("d:\\default.log");
  *
  * // 过滤日志级别
@@ -102,10 +105,11 @@ SOFTWARE.
  * 2) 修正：wlout 拼写错误，layout using 错误. ----------- 2018/05/28 yanmh
  * 3) 修正：wcstombs 依赖全局 locale, std::cout 异常v1.1.1 2018/05/28 yanmh
  * 4) 优化：解耦终端颜色控制日志槽 v1.1.2 ---------------- 2018/06/01 yanmh
- * 5) 优化：支持 wchar_t/char 混合输出 v1.1.3 ------------ 2018/06/02 yanmh
- * 6) 优化: 模板参数可配互斥类型，支持槽过滤级别 v1.1.4 -- 2018/06/02 yanmh
+ * 5) 增强：支持 wchar_t/char 混合输出 v1.1.3 ------------ 2018/06/02 yanmh
+ * 6) 增强: 模板参数可配互斥类型，支持槽过滤级别 v1.1.4 -- 2018/06/02 yanmh
  * 7) 优化: 日志时间精确到微秒 v1.1.5 -------------------- 2018/06/03 yanmh
- * 8) 优化: 支持条件日志 l[w]printf_if/[w]lout_if  v1.1.6  2018/06/03 yanmh
+ * 8) 增强: 支持条件日志 l[w]printf_if/[w]lout_if  v1.1.6  2018/06/03 yanmh
+ * 9) 增强: 新增 msvc_sink(OutputDebugString(...)) v1.1.7  2018/06/03 yanmh
  */
 
 #ifndef TINYTINYLOG_HPP
@@ -140,7 +144,7 @@ SOFTWARE.
 // 版本信息
 #define TINYLOG_VERSION_MAJOR 1
 #define TINYLOG_VERSION_MINOR 1
-#define TINYLOG_VERSION_PATCH 6
+#define TINYLOG_VERSION_PATCH 7
 
 //--------------|
 // 用户可控制   |
@@ -1783,6 +1787,56 @@ protected:
 
 using u8_file_sink = basic_u8_file_sink<char>;
 using wu8_file_sink = basic_u8_file_sink<wchar_t>;
+
+//----------------|
+// MSVC Sink      |
+//----------------|
+
+#if defined(TINYLOG_WINDOWS_API)
+
+template <class charT, class layoutT = default_layout
+    , class mutexT = mutex_t
+    , class formatterT = formatter<layoutT>>
+class basic_msvc_sink
+    : public basic_sink<charT, layoutT, mutexT, formatterT>
+{
+public:
+    using base      = basic_sink<charT, layoutT, mutexT, formatterT>;
+    using char_type = typename base::char_type;
+    using string_t  = typename base::string_t;
+
+public:
+    bool is_open() const override final
+    {
+        return true;
+    }
+
+protected:
+    void writing(level /*lvl*/, string_t& msg) override final
+    {
+        writing_impl(msg);
+    }
+
+private:
+    template <class lineCharT, typename std::enable_if
+        <std::is_same<lineCharT, char>::value, int>::type = 0>
+    void writing_impl(std::basic_string<lineCharT> const& line) const
+    {
+        ::OutputDebugStringA(line.c_str());
+    }
+
+    template <class lineCharT, typename std::enable_if
+        <std::is_same<lineCharT, wchar_t>::value, int>::type = 0>
+    void writing_impl(std::basic_string<lineCharT> const& line) const
+    {
+        ::OutputDebugStringW(line.c_str());
+    }
+};
+
+using msvc_sink = basic_msvc_sink<char>;
+using wmsvc_sink= basic_msvc_sink<wchar_t>;
+
+#endif  // TINYLOG_WINDOWS_API
 
 }  // namespace sink
 
