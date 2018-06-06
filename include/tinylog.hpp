@@ -724,6 +724,7 @@ struct ansi_constructor<char>
             else if (result == cvt_facet::partial)
             {
                 buf_size += codecvt_buf_size;
+                to.resize(buf_size);
                 continue;
             }
             to.clear();
@@ -786,6 +787,7 @@ struct ansi_constructor<wchar_t>
             else if (result == cvt_facet::partial)
             {
                 buf_size += codecvt_buf_size;
+                to.resize(buf_size);
                 continue;
             }
             to.clear();
