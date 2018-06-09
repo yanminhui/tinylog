@@ -110,6 +110,7 @@ SOFTWARE.
  * 7) 优化: 日志时间精确到微秒 v1.1.5 -------------------- 2018/06/03 yanmh
  * 8) 增强: 支持条件日志 l[w]printf_if/[w]lout_if  v1.1.6  2018/06/03 yanmh
  * 9) 增强: 新增 msvc_sink(OutputDebugString(...)) v1.1.7  2018/06/03 yanmh
+ * 10) 增强: 支持多个日志记录器 -------------------------- 2018/06/09 yanmh
  */
 
 #ifndef TINYTINYLOG_HPP
@@ -126,7 +127,6 @@ SOFTWARE.
 #include <fstream>
 #include <functional>
 #include <limits>
-#include <list>
 #include <locale>
 #include <iomanip>
 #include <iostream>
@@ -138,8 +138,10 @@ SOFTWARE.
 #include <thread>
 #include <tuple>
 #include <type_traits>
+#include <unordered_map>
 #include <utility>
 #include <valarray>
+#include <vector>
 
 // 版本信息
 #define TINYLOG_VERSION_MAJOR 1
@@ -161,6 +163,10 @@ SOFTWARE.
 
 // 使用简体中文
 // #define TINYLOG_USE_SIMPLIFIED_CHINA 1
+
+#if defined(TINYLOG_USE_SINGLE_THREAD)
+#   define TINYLOG_NO_REGISTRY_MUTEX 1
+#endif
 
 #if defined(_WIN32) || defined(__CYGWIN__)
 #   define TINYLOG_WINDOWS_API
@@ -187,6 +193,9 @@ SOFTWARE.
 
 #define TINYLOG_LF '\n'
 #define TINYLOG_LFW TINYLOG_CRT_WIDE(TINYLOG_LF)
+
+#define TINYLOG_DEFAULT "_TINYLOG_DEFAULT_"
+#define TINYLOG_DEFAULTW TINYLOG_CRT_WIDE(TINYLOG_DEFAULT)
 
 // 时间格式: 2018/05/20 19:30:27
 #define TINYLOG_DATETIME_FMT "%Y/%m/%d %H:%M:%S."
@@ -240,49 +249,77 @@ SOFTWARE.
 
 #if defined(NDEBUG)
 
-#   define lprintf(lvl, fmt, ...) ::tinylog::logger::consume(lvl) \
-    && (::tinylog::detail::lprintf_impl(lvl))(fmt, ##__VA_ARGS__)
+#   define dlprintf(ln, lvl, fmt, ...) \
+    for (::tinylog::detail::dlprintf_impl _tl_strm_((ln), (lvl)) \
+         ; _tl_strm_; _tl_strm_.flush()) _tl_strm_((fmt), ##__VA_ARGS__)
 
-#   define lwprintf(lvl, fmt, ...) ::tinylog::logger::consume(lvl) \
-    && (::tinylog::detail::lwprintf_impl(lvl))(fmt, ##__VA_ARGS__)
+#   define dlwprintf(ln, lvl, fmt, ...) \
+    for (::tinylog::detail::dlwprintf_impl _tl_strm_((ln), (lvl)) \
+         ; _tl_strm_; _tl_strm_.flush()) _tl_strm_((fmt), ##__VA_ARGS__)
 
-#   define lout(lvl) ::tinylog::logger::consume(lvl) \
-    && ::tinylog::detail::olstream(lvl)
+#   define dlout(ln, lvl) \
+    for (::tinylog::detail::odlstream _tl_strm_((ln), (lvl)) \
+         ; _tl_strm_; _tl_strm_.flush()) _tl_strm_
 
-#   define wlout(lvl) ::tinylog::logger::consume(lvl) \
-    && ::tinylog::detail::wolstream(lvl)
+#   define wdlout(ln, lvl) \
+    for (::tinylog::detail::wodlstream _tl_strm_((ln), (lvl)) \
+         ; _tl_strm_; _tl_strm_.flush()) _tl_strm_
 
 #else
 
-#   define lprintf(lvl, fmt, ...) ::tinylog::logger::consume(lvl) \
-    && (::tinylog::detail::lprintf_d_impl(lvl \
-        , __FILE__, __LINE__, TINYLOG_FUNCTION)) \
-        (fmt, ##__VA_ARGS__)
+#   define dlprintf(ln, lvl, fmt, ...) \
+    for (::tinylog::detail::dlprintf_d_impl _tl_strm_((ln), (lvl) \
+            , __FILE__, __LINE__, TINYLOG_FUNCTION) \
+         ; _tl_strm_; _tl_strm_.flush()) _tl_strm_((fmt), ##__VA_ARGS__)
 
-#   define lwprintf(lvl, fmt, ...) ::tinylog::logger::consume(lvl) \
-    && (::tinylog::detail::lwprintf_d_impl(lvl \
-        , TINYLOG_CRT_WIDE(__FILE__), __LINE__ \
-        , ::tinylog::a2w(TINYLOG_FUNCTION))) \
-        (fmt, ##__VA_ARGS__)
+#   define dlwprintf(ln, lvl, fmt, ...) \
+    for (::tinylog::detail::dlwprintf_d_impl _tl_strm_((ln), (lvl) \
+            , TINYLOG_CRT_WIDE(__FILE__), __LINE__ \
+            , ::tinylog::a2w(TINYLOG_FUNCTION)) \
+         ; _tl_strm_; _tl_strm_.flush()) _tl_strm_((fmt), ##__VA_ARGS__)
 
-#   define lout(lvl)  ::tinylog::logger::consume(lvl) \
-    && ::tinylog::detail::olstream_d(lvl \
-        , __FILE__, __LINE__, TINYLOG_FUNCTION)
+#   define dlout(ln, lvl) \
+    for (::tinylog::detail::odlstream_d _tl_strm_((ln), (lvl) \
+            , __FILE__, __LINE__, TINYLOG_FUNCTION) \
+         ; _tl_strm_; _tl_strm_.flush()) _tl_strm_
 
-#   define wlout(lvl) ::tinylog::logger::consume(lvl) \
-    && ::tinylog::detail::wolstream_d(lvl \
-        , TINYLOG_CRT_WIDE(__FILE__), __LINE__ \
-        , ::tinylog::a2w(TINYLOG_FUNCTION))
+#   define wdlout(ln, lvl) \
+    for (::tinylog::detail::wodlstream_d _tl_strm_((ln), (lvl) \
+            , TINYLOG_CRT_WIDE(__FILE__), __LINE__ \
+            , ::tinylog::a2w(TINYLOG_FUNCTION)) \
+         ; _tl_strm_; _tl_strm_.flush()) _tl_strm_
 
 #endif  // NDEBUG
 
+// 默认日志记录器
+#define lprintf(lvl, fmt, ...) \
+    dlprintf(TINYLOG_DEFAULT, (lvl), (fmt), ##__VA_ARGS__)
+#define lwprintf(lvl, fmt, ...) \
+    dlwprintf(TINYLOG_DEFAULTW, (lvl), (fmt), ##__VA_ARGS__)
+#define lout(lvl) \
+    dlout(TINYLOG_DEFAULT, (lvl))
+#define wlout(lvl) \
+    wdlout(TINYLOG_DEFAULTW, (lvl))
+
 // 条件日志
+#define dlprintf_if(ln, lvl, boolexpr, fmt, ...) \
+    if ((boolexpr)) dlprintf((ln), (lvl), (fmt), ##__VA_ARGS__)
+#define dlwprintf_if(ln, lvl, boolexpr, fmt, ...) \
+    if ((boolexpr)) dlwprintf((ln), (lvl), (fmt), ##__VA_ARGS__)
+#define dlout_if(ln, lvl, boolexpr) \
+    if ((boolexpr)) dlout((ln), (lvl))
+#define wdlout_if(ln, lvl, boolexpr) \
+    if ((boolexpr)) wdlout((ln), (lvl))
+
+// 条件日志：默认日志记录器
 #define lprintf_if(lvl, boolexpr, fmt, ...) \
-    ((boolexpr) && (lprintf(lvl, fmt, ##__VA_ARGS__)))
+    if ((boolexpr)) lprintf((lvl), (fmt), ##__VA_ARGS__)
 #define lwprintf_if(lvl, boolexpr, fmt, ...) \
-    ((boolexpr) && (lwprintf(lvl, fmt, ##__VA_ARGS__)))
-#define lout_if(lvl, boolexpr) (boolexpr) && lout(lvl)
-#define wlout_if(lvl, boolexpr) (boolexpr) && wlout(lvl)
+    if ((boolexpr)) lwprintf((lvl), (fmt), ##__VA_ARGS__)
+#define lout_if(lvl, boolexpr) \
+    if ((boolexpr)) lout((lvl))
+#define wlout_if(lvl, boolexpr) \
+    if ((boolexpr)) wlout((lvl))
 
 // 简写别名
 #define lprintf_t(fmt, ...) lprintf(::tinylog::trace, fmt, ##__VA_ARGS__)
@@ -642,22 +679,22 @@ gen_title(std::basic_string<charT> const& tm_text, charT sep)
 // 不同类型编码字符串转换
 //
 template <typename = void, typename = void>
-struct code_converter;
+struct string_traits;
 
 template <>
-struct code_converter<void>
+struct string_traits<void>
 {
     template <class To, class From>
-    static void to_string(To& to, From const& from);
+    static void convert(To& to, From const& from);
 };
 
 using u8string = std::basic_string<char>;
 
 template <>
-struct code_converter<u8string>
+struct string_traits<u8string>
 {
     template <class To, class From>
-    static void to_string(To& to, From const& from);
+    static void convert(To& to, From const& from);
 };
 
 //
@@ -813,7 +850,7 @@ struct utf8_constructor<char>
         using wide_type = wchar_t;
         // ansi --> wide
         std::basic_string<wide_type> ws;
-        code_converter<>::to_string(ws, from);
+        string_traits<>::convert(ws, from);
         // wide --> utf8
         construct(to, ws);
     }
@@ -861,14 +898,14 @@ struct utf8_constructor<wchar_t>
 // implement
 //
 template <class To, class From>
-void code_converter<void>::to_string(To& to, From const& from)
+void string_traits<void>::convert(To& to, From const& from)
 {
     using char_type = typename To::value_type;
     detail::ansi_constructor<char_type>::construct(to, from);
 }
 
 template <class To, class From>
-void code_converter<u8string>::to_string(To& to, From const& from)
+void string_traits<u8string>::convert(To& to, From const& from)
 {
     using char_type = typename To::value_type;
     detail::utf8_constructor<char_type>::construct(to, from);
@@ -878,7 +915,7 @@ void code_converter<u8string>::to_string(To& to, From const& from)
 inline std::wstring a2w(std::string const& s)
 {
     std::wstring ws;
-    code_converter<>::to_string(ws, s);
+    string_traits<>::convert(ws, s);
     return ws;
 }
 
@@ -1089,10 +1126,6 @@ struct layout_constructor<char>
     friend struct layout_constructor_base<layout_constructor<char>, char>;
 
     using base      = layout_constructor_base<layout_constructor<char>, char>;
-    // using char_type = typename base::char_type;
-    // using string_t  = typename base::string_t;
-    // using record    = typename base::record;
-    // using record_d  = typename base::record_d;
 
     static constexpr auto sep = TINYLOG_SEPARATOR;
     static constexpr auto lf  = TINYLOG_LF;
@@ -1132,10 +1165,6 @@ struct layout_constructor<wchar_t>
     friend struct layout_constructor_base<layout_constructor<wchar_t>, wchar_t>;
 
     using base = layout_constructor_base<layout_constructor<wchar_t>, wchar_t>;
-    // using char_type = typename base::char_type;
-    // using string_t  = typename base::string_t;
-    // using record    = typename base::record;
-    // using record_d  = typename base::record_d;
 
     static constexpr auto sep = TINYLOG_SEPARATORW;
     static constexpr auto lf  = TINYLOG_LFW;
@@ -1424,8 +1453,7 @@ void style(std::basic_string<charT>& color)
 //     使用者可以定制，实现属于自己的槽，使日志消息输出到不同对象上。
 //
 //////////////////////////////////////////////////////////////////////////////
-namespace sink
-{
+
 // 互斥量类型
 #if defined(TINYLOG_USE_SINGLE_THREAD)
 using mutex_t = detail::null_mutex;
@@ -1433,6 +1461,8 @@ using mutex_t = detail::null_mutex;
 using mutex_t = std::mutex;
 #endif
 
+namespace sink
+{
 //
 // 抽象基类:
 //     使用者可以继承 basic_sink<> 实现，实现属于自己的槽。
@@ -1783,7 +1813,7 @@ protected:
     {
         // convert only if string_t is narrow type.
         string_t const from = msg;
-        code_converter<u8string>::to_string(msg, from);
+        string_traits<u8string>::convert(msg, from);
     }
 };
 
@@ -1902,7 +1932,7 @@ public:
         using record_t = basic_record<char_type>;
 
         string_t m;
-        code_converter<>::to_string(m, r.message);
+        string_traits<>::convert(m, r.message);
 
         record_t to(r.tv, r.lvl, r.id, m);
         sink_->consume(to);
@@ -1917,13 +1947,13 @@ public:
         using record_t = basic_record_d<char_type>;
 
         string_t m;
-        code_converter<>::to_string(m, r.message);
+        string_traits<>::convert(m, r.message);
 
         string_t fn;
-        code_converter<>::to_string(fn, r.file);
+        string_traits<>::convert(fn, r.file);
 
         string_t fun;
-        code_converter<>::to_string(fun, r.func);
+        string_traits<>::convert(fun, r.func);
 
         record_t to(r.tv, r.lvl, r.id, m, fn, r.line, fun);
         sink_->consume(to);
@@ -1932,44 +1962,6 @@ public:
 private:
     sink_t sink_;
 };
-
-//
-// 输出槽管理:
-//     只被 logger 使用，只使用 sink_adapter_base.
-//
-class sink_manager
-{
-    using sink_adapter_t = std::shared_ptr<sink_adapter_base>;
-
-public:
-    template <class sinkT
-        , class charT = typename sinkT::element_type::char_type>
-    static void add_sink(sinkT sk)
-    {
-        using char_type = charT;
-        auto sk_adapter = std::make_shared<basic_sink_adapter<char_type>>(sk);
-        sink_adapters_.emplace_back(sk_adapter);
-    }
-
-    template <class recordT>
-    static void consume(recordT const& r)
-    {
-        for (auto& sk_adapter : sink_adapters_)
-        {
-            if (!*sk_adapter)
-            {
-                continue;
-            }
-            sk_adapter->consume(r);
-        }
-    }
-
-private:
-    static std::list<sink_adapter_t> sink_adapters_;
-};
-
-// 全局静态数据
-std::list<sink_manager::sink_adapter_t> sink_manager::sink_adapters_;
 
 }  // namesapce detail
 
@@ -1982,24 +1974,37 @@ std::list<sink_manager::sink_adapter_t> sink_manager::sink_adapters_;
 class logger
 {
 public:
-    /** \brief 安装输出槽
-     *
-     * 使用形式参见 std::make_shared(...)
-     *
-     * 示例:
-     * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.cpp
-     * auto file_sink = logger::add_sink<sink::wfile_sink>(L"d:\\error.log");
-     * if (!*file_sink) {
-     *     // open file failed.
-     * }
-     * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-     */
-    template <class T, class... Args>
-    static std::shared_ptr<T> add_sink(Args&&... args)
+#if defined(TINYLOG_WINDOWS_API)
+    using char_type     = wchar_t;
+    using extern_type   = char;
+#else
+    using char_type     = char;
+    using extern_type   = wchar_t;
+#endif // defined
+    using string_t      = std::basic_string<char_type>;
+    using xstring_t     = std::basic_string<extern_type>;
+    using sink_adapter_t = std::shared_ptr<detail::sink_adapter_base>;
+
+public:
+    explicit logger(string_t const& n) : name_(n)
     {
-        auto sk = std::make_shared<T>(std::forward<Args>(args)...);
-        detail::sink_manager::add_sink(sk);
-        return sk;
+    }
+    explicit logger(xstring_t const& n)
+    {
+        string_traits<>::convert(name_, n);
+    }
+    explicit logger() :
+#if defined(TINYLOG_WINDOWS_API)
+        name_(TINYLOG_DEFAULTW)
+#else
+        name_(TINYLOG_DEFAULT)
+#endif
+    {
+    }
+
+    string_t name() const
+    {
+        return name_;
     }
 
     /** \brief 过滤日志级别
@@ -2008,19 +2013,64 @@ public:
      * 优先级:
      *     trace < debug < info < warn < error < fatal
      */
-    static void set_level(level lvl)
+    void set_level(level lvl)
     {
-        level_ = lvl;
+        lvl_ = lvl;
     }
 
-    static level get_level()
+    level get_level() const
     {
-        return level_;
+        return lvl_;
     }
 
-    static bool consume(level lvl)
+    /** \brief 安装输出槽
+     *
+     * 使用形式参见 std::make_shared(...)
+     *
+     * 示例:
+     * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.cpp
+     * auto file_sink = logger::create_sink<sink::wfile_sink>(L"d:\\error.log");
+     * if (!*file_sink) {
+     *     // open file failed.
+     * }
+     * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     */
+    template <class sinkT, class... Args>
+    std::shared_ptr<sinkT> create_sink(Args&&... args)
+    {
+        auto sk = std::make_shared<sinkT>(std::forward<Args>(args)...);
+        return add_sink(sk);
+    }
+
+    template <class sinkT
+            , class charT = typename sinkT::char_type>
+    std::shared_ptr<sinkT> add_sink(std::shared_ptr<sinkT> sk)
+    {
+        using char_type = charT;
+        assert(sk && "sink instance point must exists");
+        sk->set_level(lvl_);
+        auto sk_adapter = std::make_shared<detail::basic_sink_adapter<char_type>>(sk);
+        sink_adapters_.emplace_back(sk_adapter);
+        return sk;
+    }
+
+    bool consume(level lvl) const
     {
         return lvl >= get_level();
+    }
+
+    template <class recordT>
+    void push_record(recordT const& r)
+    {
+        for (auto& sk_adapter : sink_adapters_)
+        {
+            if (!*sk_adapter)
+            {
+                // TODO: failed
+                continue;
+            }
+            sk_adapter->consume(r);
+        }
     }
 
 public:
@@ -2040,19 +2090,206 @@ public:
         return detail::gen_title(text, TINYLOG_TITILE_CHARW);
     }
 
+private:
+    string_t name_;
+    level lvl_ = level::trace;
+    std::vector<sink_adapter_t> sink_adapters_;
+};
+
+//
+// 注册管理
+//     管理日志记录器
+//
+template<class mutexT = mutex_t>
+class basic_registry
+{
 public:
-    template <class recordT>
-    static void push_back(recordT const& r)
+#if defined(TINYLOG_WINDOWS_API)
+    using char_type     = wchar_t;
+    using extern_type   = char;
+#else
+    using char_type     = char;
+    using extern_type   = wchar_t;
+#endif // defined
+    using string_t      = std::basic_string<char_type>;
+    using xstring_t     = std::basic_string<extern_type>;
+    using logger_t      = logger;
+    using logger_ptr    = std::shared_ptr<logger_t>;
+
+public:
+    static basic_registry& instance()
     {
-        detail::sink_manager::consume(r);
+        if (!inst_)
+        {
+            struct ms_enabler : public basic_registry {};
+
+            if (std::this_thread::get_id() == std::thread::id())
+            // on main
+            {
+                inst_ = std::make_shared<ms_enabler>();
+            }
+            else
+            {
+                std::call_once(once_flg_
+                    , [&]()
+                    {
+                        inst_ = std::make_shared<ms_enabler>();
+                    });
+            }
+        }
+        assert(inst_ && "registry instance must exists");
+        return *inst_;
+    }
+
+public:
+    basic_registry(basic_registry const&) = delete;
+    basic_registry& operator=(basic_registry const&) = delete;
+
+    // 日志级别:
+    //     为创建日志记录器时设置默认过滤级别
+    void set_level(level lvl)
+    {
+        std::lock_guard<mutexT> lock(mtx_);
+        for (auto& l : loggers_)
+        {
+            l.second->set_level(lvl);
+        }
+        lvl_ = lvl;
+    }
+
+    // 添加日志记录器
+    //      失败将抛出异常
+    logger_ptr create_logger(string_t const& logger_name)
+    {
+        std::lock_guard<mutexT> lock(mtx_);
+        throw_if_exists(logger_name);
+        auto p = std::make_shared<logger_t>(logger_name);
+        p->set_level(lvl_);
+        loggers_[logger_name] = p;
+        return p;
+    }
+    logger_ptr create_logger(xstring_t const& logger_name)
+    {
+        string_t name;
+        string_traits<>::convert(name, logger_name);
+        return create_logger(name);
+    }
+    logger_ptr create_logger()
+    {
+#if defined(TINYLOG_WINDOWS_API)
+        return create_logger(TINYLOG_DEFAULTW);
+#else
+        return create_logger(TINYLOG_DEFAULT);
+#endif
+    }
+
+    logger_ptr add_logger(logger_ptr inst)
+    {
+        assert(inst && "logger instance point must exists");
+        auto const name = cvt(inst->name());
+        std::lock_guard<mutexT> lock(mtx_);
+        throw_if_exists(name);
+        inst->set_level(lvl_);
+        loggers_[name] = inst;
+        return inst;
+    }
+
+    // 获取日志记录器
+    //      失败返回空指针
+    logger_ptr get_logger(string_t const& logger_name) const
+    {
+        std::lock_guard<mutexT> lock(mtx_);
+        auto found = loggers_.find(logger_name);
+        return found == loggers_.cend() ? nullptr : found->second;
+    }
+    logger_ptr get_logger(xstring_t const& logger_name) const
+    {
+        string_t name;
+        string_traits<>::convert(name, logger_name);
+        return get_logger(name);
+    }
+    logger_ptr get_logger() const
+    {
+#if defined(TINYLOG_WINDOWS_API)
+        return get_logger(TINYLOG_DEFAULTW);
+#else
+        return get_logger(TINYLOG_DEFAULT);
+#endif
+    }
+
+    void erase_logger(string_t const& logger_name)
+    {
+        std::lock_guard<mutexT> lock(mtx_);
+        loggers_.erase(logger_name);
+    }
+    void erase_logger(xstring_t const& logger_name)
+    {
+        string_t name;
+        string_traits<>::convert(name, logger_name);
+        return erase_logger(name);
+    }
+    void erase_logger()
+    {
+#if defined(TINYLOG_WINDOWS_API)
+        return erase_logger(TINYLOG_DEFAULTW);
+#else
+        return erase_logger(TINYLOG_DEFAULT);
+#endif
+    }
+
+    void earse_all_logger()
+    {
+        std::lock_guard<mutexT> lock(mtx_);
+        loggers_.clear();
     }
 
 private:
-    static level level_;
+    basic_registry() = default;
+
+    static string_t cvt(string_t const& xs)
+    {
+        return xs;
+    }
+    static string_t cvt(xstring_t const& xs)
+    {
+        string_t s;
+        string_traits<>::convert(s, xs);
+        return s;
+    }
+
+    void throw_if_exists(string_t const& logger_name) const
+    {
+        if (loggers_.find(logger_name) != loggers_.cend())
+        {
+            std::string name;
+            string_traits<>::convert(name, logger_name);
+            name = "logger with name \'" + name + "\' already exists";
+            throw std::system_error(std::make_error_code(std::errc::file_exists)
+                                    , name);
+        }
+    }
+
+private:
+    static std::once_flag once_flg_;
+    static std::shared_ptr<basic_registry> inst_;
+
+private:
+    mutable mutexT mtx_;
+    level lvl_ = level::trace;
+    std::unordered_map<string_t, logger_ptr> loggers_;
 };
 
-// 全局静态数据
-level logger::level_ = trace;
+template <class mutexT>
+std::once_flag basic_registry<mutexT>::once_flg_;
+
+template <class mutexT>
+std::shared_ptr<basic_registry<mutexT>> basic_registry<mutexT>::inst_;
+
+#if defined(TINYLOG_NO_REGISTRY_MUTEX)
+using registry = basic_registry<detail::null_mutex>;
+#else
+using registry = basic_registry<std::mutex>;
+#endif
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -2063,15 +2300,78 @@ namespace detail
 {
 
 template <class charT>
-class basic_lprintf
+class basic_dlprintf_base
 {
 public:
     using char_type = charT;
     using string_t  = std::basic_string<char_type>;
-    using record_t  = basic_record<char_type>;
+    using logger_t  = logger;
+    using logger_ptr= std::shared_ptr<logger_t>;
 
-    explicit basic_lprintf(level lvl)
-        : record_(lvl)
+public:
+    explicit basic_dlprintf_base(logger_ptr inst)
+        : logger_(inst)
+    {
+    }
+
+    explicit basic_dlprintf_base(string_t const& logger_name)
+        : logger_(registry::instance().get_logger(logger_name))
+    {
+    }
+
+    explicit operator bool() const
+    {
+        return is_open();
+    }
+
+    bool operator!() const
+    {
+        return !is_open();
+    }
+
+    bool is_open() const
+    {
+        return logger_ && logger_->consume(get_level());
+    }
+
+    virtual level get_level() const = 0;
+
+    virtual bool flush()
+    {
+        logger_.reset();
+        return true;
+    }
+
+protected:
+    logger_ptr get_logger()
+    {
+        return logger_;
+    }
+
+private:
+    logger_ptr logger_;
+};
+
+template <class charT>
+class basic_dlprintf
+    : public basic_dlprintf_base<charT>
+{
+public:
+    using base      = basic_dlprintf_base<charT>;
+    using char_type = typename base::char_type;
+    using string_t  = typename base::string_t;
+    using record_t  = basic_record<char_type>;
+    using logger_t  = typename base::logger_t;
+    using logger_ptr= typename base::logger_ptr;
+
+public:
+    explicit basic_dlprintf(logger_ptr inst, level lvl)
+        : base(inst), record_(lvl)
+    {
+    }
+
+    explicit basic_dlprintf(string_t const& logger_name, level lvl)
+        : base(logger_name), record_(lvl)
     {
     }
 
@@ -2089,31 +2389,54 @@ public:
         return true;
     }
 
-    ~basic_lprintf()
+    level get_level() const override
     {
-        logger::push_back(record_);
+        return record_.lvl;
+    }
+
+    bool flush() override
+    {
+        auto inst = base::get_logger();
+        if (inst)
+        {
+            inst->push_record(record_);
+        }
+        return base::flush();
     }
 
 private:
     record_t record_;
 };
 
-using lprintf_impl  = basic_lprintf<char>;
-using lwprintf_impl = basic_lprintf<wchar_t>;
+using dlprintf_impl  = basic_dlprintf<char>;
+using dlwprintf_impl = basic_dlprintf<wchar_t>;
 
 template <class charT>
-class basic_lprintf_d
+class basic_dlprintf_d
+    : public basic_dlprintf_base<charT>
 {
 public:
-    using char_type = charT;
-    using string_t  = std::basic_string<char_type>;
+    using base      = basic_dlprintf_base<charT>;
+    using char_type = typename base::char_type;
+    using string_t  = typename base::string_t;
     using record_t  = basic_record_d<char_type>;
+    using logger_t  = typename base::logger_t;
+    using logger_ptr= typename base::logger_ptr;
 
-    explicit basic_lprintf_d(level lvl
+public:
+    explicit basic_dlprintf_d(logger_ptr inst, level lvl
                              , string_t const& file
                              , std::size_t line
                              , string_t const& func)
-        : record_(lvl, file, line, func)
+        : base(inst), record_(lvl, file, line, func)
+    {
+    }
+
+    explicit basic_dlprintf_d(string_t const& logger_name, level lvl
+                             , string_t const& file
+                             , std::size_t line
+                             , string_t const& func)
+        : base(logger_name), record_(lvl, file, line, func)
     {
     }
 
@@ -2131,96 +2454,196 @@ public:
         return true;
     }
 
-    ~basic_lprintf_d()
+    level get_level() const override
     {
-        logger::push_back(record_);
+        return record_.lvl;
+    }
+
+    bool flush() override
+    {
+        auto inst = base::get_logger();
+        if (inst)
+        {
+            inst->push_record(record_);
+        }
+        return base::flush();
     }
 
 private:
     record_t record_;
 };
 
-using lprintf_d_impl  = basic_lprintf_d<char>;
-using lwprintf_d_impl = basic_lprintf_d<wchar_t>;
+using dlprintf_d_impl  = basic_dlprintf_d<char>;
+using dlwprintf_d_impl = basic_dlprintf_d<wchar_t>;
 
 // 流化支持: 日志输出流
 template<class charT>
-class basic_olstream : public std::basic_ostream<charT>
+class basic_odlstream_base
+    : public std::basic_ostream<charT>
 {
 public:
     using base      = std::basic_ostream<charT>;
     using char_type = charT;
     using string_t  = std::basic_string<char_type>;
     using sbuf_t    = std::basic_stringbuf<char_type>;
-    using record_t  = basic_record<char_type>;
+    using logger_t  = logger;
+    using logger_ptr= std::shared_ptr<logger_t>;
 
 public:
-    explicit basic_olstream(string_t const& s, level lvl)
-        : base(&stringbuf_), stringbuf_(s), record_(lvl)
+    explicit basic_odlstream_base(logger_ptr inst)
+        : base(&stringbuf_), logger_(inst)
     {
     }
 
-    explicit basic_olstream(level lvl)
-        : base(&stringbuf_), record_(lvl)
+    explicit basic_odlstream_base(string_t const& logger_name)
+        : base(&stringbuf_)
+        , logger_(registry::instance().get_logger(logger_name))
     {
     }
 
-    ~basic_olstream()
+    explicit operator bool() const
     {
-        record_.message = stringbuf_.str();
-        logger::push_back(record_);
+        return is_open();
+    }
+
+    bool operator!() const
+    {
+        return !is_open();
+    }
+
+    bool is_open() const
+    {
+        return logger_ && logger_->consume(get_level());
+    }
+
+    virtual level get_level() const = 0;
+
+    virtual bool flush()
+    {
+        logger_.reset();
+        return true;
+    }
+
+protected:
+    sbuf_t& get_sbuf()
+    {
+        return stringbuf_;
+    }
+
+    logger_ptr get_logger()
+    {
+        return logger_;
     }
 
 private:
     sbuf_t stringbuf_;
+    logger_ptr logger_;
+};
+
+template<class charT>
+class basic_odlstream
+    : public basic_odlstream_base<charT>
+{
+public:
+    using base      = basic_odlstream_base<charT>;
+    using char_type = typename base::char_type;
+    using string_t  = typename base::string_t;
+    using sbuf_t    = typename base::sbuf_t;
+    using record_t  = basic_record<char_type>;
+    using logger_t  = typename base::logger_t;
+    using logger_ptr= typename base::logger_ptr;
+
+public:
+    explicit basic_odlstream(logger_ptr inst, level lvl)
+        : base(inst), record_(lvl)
+    {
+    }
+
+    explicit basic_odlstream(string_t const& logger_name
+                            , level lvl)
+        : base(logger_name), record_(lvl)
+    {
+    }
+
+    level get_level() const override
+    {
+        return record_.lvl;
+    }
+
+    bool flush() override
+    {
+        auto inst = base::get_logger();
+        if (inst)
+        {
+            record_.message = base::get_sbuf().str();
+            inst->push_record(record_);
+        }
+        return base::flush();
+    }
+
+private:
     record_t record_;
 };
 
-using olstream  = basic_olstream<char>;
-using wolstream = basic_olstream<wchar_t>;
+using odlstream  = basic_odlstream<char>;
+using wodlstream = basic_odlstream<wchar_t>;
 
 // 流化支持: 支持调试信息
 template<class charT>
-class basic_olstream_d : public std::basic_ostream<charT>
+class basic_odlstream_d
+    : public basic_odlstream_base<charT>
 {
 public:
-    using base      = std::basic_ostream<charT>;
-    using char_type = charT;
-    using string_t  = std::basic_string<char_type>;
-    using sbuf_t    = std::basic_stringbuf<char_type>;
+    using base      = basic_odlstream_base<charT>;
+    using char_type = typename base::char_type;
+    using string_t  = typename base::string_t;
+    using sbuf_t    = typename base::sbuf_t;
     using record_t  = basic_record_d<char_type>;
+    using logger_t  = typename base::logger_t;
+    using logger_ptr= typename base::logger_ptr;
 
 public:
-    explicit basic_olstream_d(string_t const& s, level lvl
+    explicit basic_odlstream_d(logger_ptr inst, level lvl
                               , string_t const& file
                               , std::size_t line
                               , string_t const& func)
-        : base(&stringbuf_), stringbuf_(s)
+        : base(inst)
         , record_(lvl, file, line, func)
     {
     }
 
-    explicit basic_olstream_d(level lvl
+    explicit basic_odlstream_d(string_t const& logger_name
+                              , level lvl
                               , string_t const& file
                               , std::size_t line
                               , string_t const& func)
-        : base(&stringbuf_), record_(lvl, file, line, func)
+        : base(logger_name)
+        , record_(lvl, file, line, func)
     {
     }
 
-    ~basic_olstream_d()
+    level get_level() const override
     {
-        record_.message = stringbuf_.str();
-        logger::push_back(record_);
+        return record_.lvl;
+    }
+
+    bool flush() override
+    {
+        auto inst = base::get_logger();
+        if (inst)
+        {
+            record_.message = base::get_sbuf().str();
+            inst->push_record(record_);
+        }
+        return base::flush();
     }
 
 private:
-    sbuf_t stringbuf_;
     record_t record_;
 };
 
-using olstream_d    = basic_olstream_d<char>;
-using wolstream_d   = basic_olstream_d<wchar_t>;
+using odlstream_d    = basic_odlstream_d<char>;
+using wodlstream_d   = basic_odlstream_d<wchar_t>;
 
 }  // namespace detail
 
@@ -2576,7 +2999,7 @@ inline std::wstring whexdump(std::string const& s)
 {
     auto buf = hexdump<hex_offset>(s);
     std::wstring ws;
-    code_converter<u8string>::to_string(ws, buf);
+    string_traits<u8string>::convert(ws, buf);
     return ws;
 }
 

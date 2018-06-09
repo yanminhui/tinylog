@@ -14,17 +14,20 @@ int main(int argc, char* argv[])
     std::locale loc("");
     std::locale::global(loc);
 
+    // 安装日志记录器
+    auto inst = registry::instance().create_logger();
+
     // 安装输出槽
-    logger::add_sink<sink::wconsole_sink>();
+    inst->create_sink<sink::wconsole_sink>();
 
     constexpr auto max_file_size = 5 * 1024 * 1024; // 5MB
-    logger::add_sink<sink::wu8_file_sink>("default.log", max_file_size);
+    inst->create_sink<sink::wu8_file_sink>("default.log", max_file_size);
 
     // 过滤日志级别
-    logger::set_level(debug);
+    inst->set_level(debug);
 
     // [可选] 输出日志边界
-    wlout_d << logger::wtitle();
+    wdlout(inst, debug) << logger::wtitle();
 
     //--------------|
     // 输出日志     |
@@ -33,7 +36,7 @@ int main(int argc, char* argv[])
     wlout(info) << L"Weclome to TinyLog !!!" << std::endl;
 
     // STL容器
-    std::map<std::wstring, size_t> const ages = {{ L"tinylog", 1 }, { L"json", 5 }};
+    std::map<std::wstring, size_t> const ages = {{L"tl", 1}, {L"js", 5}};
     wlout(warn) << L"ages: " << ages << std::endl;
 
     // 十六进制
