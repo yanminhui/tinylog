@@ -47,6 +47,9 @@ SOFTWARE.
  *
  * using namespace tinylog;
  *
+ * // 注册一个日志记录器
+ * auto inst = registry::instance().create_logger();
+ *
  * // 安装输出槽：接收日志消息
  * //     - [w]console_sink
  * //           终端槽, 不同级别日志以不同颜色区分.
@@ -62,10 +65,10 @@ SOFTWARE.
  * //     - [w]msvc_sink
  * //           visual studio debug console output.
  * //
- * logger::add_sink<sink::wfile_sink<default_layout>>("d:\\default.log");
+ * inst->create_sink<sink::wfile_sink<default_layout>>("d:\\default.log");
  *
  * // 过滤日志级别
- * logger::set_level(info);
+ * inst->set_level(info);
  *
  * // [usage] 输出日志
  * //    - char
@@ -154,6 +157,7 @@ SOFTWARE.
 
 // 使用单线程模式
 // #define TINYLOG_USE_SINGLE_THREAD 1
+// #define TINYLOG_NO_REGISTRY_MUTEX 1
 
 // 禁止STL容器日志
 // #define TINYLOG_DISABLE_STL_LOGING 1
@@ -164,7 +168,7 @@ SOFTWARE.
 // 使用简体中文
 // #define TINYLOG_USE_SIMPLIFIED_CHINA 1
 
-#if defined(TINYLOG_USE_SINGLE_THREAD)
+#if defined(TINYLOG_USE_SINGLE_THREAD) && !defined(TINYLOG_NO_REGISTRY_MUTEX)
 #   define TINYLOG_NO_REGISTRY_MUTEX 1
 #endif
 
@@ -245,7 +249,7 @@ SOFTWARE.
 #   define TINYLOG_FUNCTION __PRETTY_FUNCTION__
 #else
 #   define TINYLOG_FUNCTION __FUNCTION__
-#endif // __PRETTY_FUNCTION__
+#endif // __GNUC__
 
 #if defined(NDEBUG)
 
@@ -1980,7 +1984,7 @@ public:
 #else
     using char_type     = char;
     using extern_type   = wchar_t;
-#endif // defined
+#endif
     using string_t      = std::basic_string<char_type>;
     using xstring_t     = std::basic_string<extern_type>;
     using sink_adapter_t = std::shared_ptr<detail::sink_adapter_base>;
@@ -2048,9 +2052,8 @@ public:
     {
         using char_type = charT;
         assert(sk && "sink instance point must exists");
-        sk->set_level(lvl_);
-        auto sk_adapter = std::make_shared<detail::basic_sink_adapter<char_type>>(sk);
-        sink_adapters_.emplace_back(sk_adapter);
+        auto ska = std::make_shared<detail::basic_sink_adapter<char_type>>(sk);
+        sink_adapters_.emplace_back(ska);
         return sk;
     }
 
@@ -2110,7 +2113,7 @@ public:
 #else
     using char_type     = char;
     using extern_type   = wchar_t;
-#endif // defined
+#endif
     using string_t      = std::basic_string<char_type>;
     using xstring_t     = std::basic_string<extern_type>;
     using logger_t      = logger;
@@ -2237,7 +2240,7 @@ public:
 #endif
     }
 
-    void earse_all_logger()
+    void erase_all_logger()
     {
         std::lock_guard<mutexT> lock(mtx_);
         loggers_.clear();
