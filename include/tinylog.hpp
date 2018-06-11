@@ -2,7 +2,7 @@
  _____ _             _
 |_   _(_)_ __  _   _| |    ___   __ _
   | | | | '_ \| | | | |   / _ \ / _` | TinyLog for Modern C++
-  | | | | | | | |_| | |__| (_) | (_| | version 1.2.0
+  | | | | | | | |_| | |__| (_) | (_| | version 1.2.1
   |_| |_|_| |_|\__, |_____\___/ \__, | https://github.com/yanminhui/tinylog
                |___/            |___/
 
@@ -65,7 +65,7 @@ SOFTWARE.
  * //     - [w]msvc_sink
  * //           visual studio debug console output.
  * //
- * inst->create_sink<sink::wfile_sink<default_layout>>("d:\\default.log");
+ * inst->create_sink<sink::wfile_sink>("d:\\default.log");
  *
  * // 过滤日志级别
  * inst->set_level(info);
@@ -115,6 +115,7 @@ SOFTWARE.
  * 9) 增强: 新增 msvc_sink(OutputDebugString(...)) v1.1.7  2018/06/03 yanmh
  * 10) 增强: 支持多个日志记录器 -------------------------- 2018/06/09 yanmh
  * 11) 增强: 支持记录附加模式 endpage_layout (#3) v1.2.0 - 2018/06/10 yanmh
+ * 12) 修正: vs2015 编译错误 (#3) v1.2.1 ------------ 2018/06/11 yanmh
  */
 
 #ifndef TINYTINYLOG_HPP
@@ -150,7 +151,7 @@ SOFTWARE.
 // 版本信息
 #define TINYLOG_VERSION_MAJOR 1
 #define TINYLOG_VERSION_MINOR 2
-#define TINYLOG_VERSION_PATCH 0
+#define TINYLOG_VERSION_PATCH 1
 
 //--------------|
 // 用户可控制   |
@@ -1118,7 +1119,7 @@ protected:
     {
         struct tm ti;
 #if defined(TINYLOG_WINDOWS_API)
-        ::localtime_s(&ti, &tv.tv_sec);
+        ::localtime_s(&ti, &r.tv.tv_sec);
 #else
         ::localtime_r(&r.tv.tv_sec, &ti);
 #endif // TINYLOG_WINDOWS_API
@@ -2327,19 +2328,17 @@ public:
     {
         if (!inst_)
         {
-            struct ms_enabler : public basic_registry {};
-
             if (std::this_thread::get_id() == std::thread::id())
             // on main
             {
-                inst_ = std::make_shared<ms_enabler>();
+                inst_.reset(new basic_registry());
             }
             else
             {
                 std::call_once(once_flg_
                     , [&]()
                     {
-                        inst_ = std::make_shared<ms_enabler>();
+                        inst_.reset(new basic_registry());
                     });
             }
         }
