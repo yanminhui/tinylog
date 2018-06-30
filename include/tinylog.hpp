@@ -2,7 +2,7 @@
  _____ _             _
 |_   _(_)_ __  _   _| |    ___   __ _
   | | | | '_ \| | | | |   / _ \ / _` | TinyLog for Modern C++
-  | | | | | | | |_| | |__| (_) | (_| | version 1.2.1
+  | | | | | | | |_| | |__| (_) | (_| | version 1.3.0
   |_| |_|_| |_|\__, |_____\___/ \__, | https://github.com/yanminhui/tinylog
                |___/            |___/
 
@@ -43,12 +43,17 @@ SOFTWARE.
  *
  * 示例:
  * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~cpp
+ *
+ * // 初始化全局对象
+ *
+ * INITIALIZE_TINYLOG
+ *
  * // [main] 主函数
  *
  * using namespace tinylog;
  *
  * // 注册一个日志记录器
- * auto inst = registry::instance().create_logger();
+ * auto inst = g_registry->create_logger();
  *
  * // 安装输出槽：接收日志消息
  * //     - [w]console_sink
@@ -115,7 +120,8 @@ SOFTWARE.
  * 9) 增强: 新增 msvc_sink(OutputDebugString(...)) v1.1.7  2018/06/03 yanmh
  * 10) 增强: 支持多个日志记录器 -------------------------- 2018/06/09 yanmh
  * 11) 增强: 支持记录附加模式 endpage_layout (#3) v1.2.0 - 2018/06/10 yanmh
- * 12) 修正: vs2015 编译错误 (#3) v1.2.1 ------------ 2018/06/11 yanmh
+ * 12) 修正: vs2015 编译错误 (#3) v1.2.1 ----------------- 2018/06/11 yanmh
+ * 13) 修正: 单例跨动态库产生多实例 (#4) v1.3.0 ---------- 2018/06/30 yanmh
  */
 
 #ifndef TINYTINYLOG_HPP
@@ -150,8 +156,8 @@ SOFTWARE.
 
 // 版本信息
 #define TINYLOG_VERSION_MAJOR 1
-#define TINYLOG_VERSION_MINOR 2
-#define TINYLOG_VERSION_PATCH 1
+#define TINYLOG_VERSION_MINOR 3
+#define TINYLOG_VERSION_PATCH 0
 
 //--------------|
 // 用户可控制   |
@@ -237,6 +243,11 @@ SOFTWARE.
 #else
 #   define TINYLOG_FUNCTION __FUNCTION__
 #endif // __GNUC__
+
+#define TINYLOG_INITIALIZE \
+namespace tinylog { \
+    std::shared_ptr<registry> g_registry = std::make_shared<registry>(); \
+}
 
 #if defined(NDEBUG)
 
@@ -342,6 +353,7 @@ SOFTWARE.
 #define lwprintf_f(fmt, ...) lwprintf(::tinylog::fatal, fmt, ##__VA_ARGS__)
 #define lout_f lout(::tinylog::fatal)
 #define wlout_f wlout(::tinylog::fatal)
+
 
 namespace tinylog
 {
@@ -925,7 +937,7 @@ template <class charT>
 std::basic_string<charT> to_string(level lvl);
 
 template <>
-std::basic_string<char> to_string(level lvl)
+inline std::basic_string<char> to_string(level lvl)
 {
     std::basic_string<char> text;
     switch (lvl)
@@ -956,7 +968,7 @@ std::basic_string<char> to_string(level lvl)
 }
 
 template <>
-std::basic_string<wchar_t> to_string(level lvl)
+inline std::basic_string<wchar_t> to_string(level lvl)
 {
     std::basic_string<wchar_t> text;
     switch (lvl)
@@ -2324,29 +2336,7 @@ public:
     using logger_ptr    = std::shared_ptr<logger_t>;
 
 public:
-    static basic_registry& instance()
-    {
-        if (!inst_)
-        {
-            if (std::this_thread::get_id() == std::thread::id())
-            // on main
-            {
-                inst_.reset(new basic_registry());
-            }
-            else
-            {
-                std::call_once(once_flg_
-                    , [&]()
-                    {
-                        inst_.reset(new basic_registry());
-                    });
-            }
-        }
-        assert(inst_ && "registry instance must exists");
-        return *inst_;
-    }
-
-public:
+    basic_registry() = default;
     basic_registry(basic_registry const&) = delete;
     basic_registry& operator=(basic_registry const&) = delete;
 
@@ -2449,8 +2439,6 @@ public:
     }
 
 private:
-    basic_registry() = default;
-
     static string_t cvt(string_t const& xs)
     {
         return xs;
@@ -2475,26 +2463,18 @@ private:
     }
 
 private:
-    static std::once_flag once_flg_;
-    static std::shared_ptr<basic_registry> inst_;
-
-private:
     mutable mutexT mtx_;
     level lvl_ = level::trace;
     std::unordered_map<string_t, logger_ptr> loggers_;
 };
-
-template <class mutexT>
-std::once_flag basic_registry<mutexT>::once_flg_;
-
-template <class mutexT>
-std::shared_ptr<basic_registry<mutexT>> basic_registry<mutexT>::inst_;
 
 #if defined(TINYLOG_NO_REGISTRY_MUTEX)
 using registry = basic_registry<detail::null_mutex>;
 #else
 using registry = basic_registry<std::mutex>;
 #endif
+
+extern std::shared_ptr<registry> g_registry;
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -2520,7 +2500,9 @@ public:
     }
 
     explicit basic_dlprintf_base(string_t const& logger_name)
-        : logger_(registry::instance().get_logger(logger_name))
+        : logger_(g_registry
+                  ? g_registry->get_logger(logger_name)
+                  : nullptr)
     {
     }
 
@@ -2702,7 +2684,9 @@ public:
 
     explicit basic_odlstream_base(string_t const& logger_name)
         : base(&stringbuf_)
-        , logger_(registry::instance().get_logger(logger_name))
+        , logger_(g_registry
+                  ? g_registry->get_logger(logger_name)
+                  : nullptr)
     {
     }
 
