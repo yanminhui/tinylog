@@ -58,8 +58,6 @@ to the files you want to logging and set the necessary switches to enable C++11 
 
 #include "tinylog.hpp"
 
-TINYLOG_INITIALIZE
-
 int main(int argc, char* argv[])
 {
     using namespace tinylog;
@@ -71,7 +69,7 @@ int main(int argc, char* argv[])
     std::locale::global(loc);
 
     // Regist logger
-    auto inst = g_registry->create_logger();
+    auto inst = registry::create_logger();
 
     // Setup sink: @see std::make_shared<>
     inst->create_sink<sink::console_sink>();

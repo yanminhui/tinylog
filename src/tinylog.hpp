@@ -2,7 +2,7 @@
  _____ _             _
 |_   _(_)_ __  _   _| |    ___   __ _
   | | | | '_ \| | | | |   / _ \ / _` | TinyLog for Modern C++
-  | | | | | | | |_| | |__| (_) | (_| | version 1.3.0
+  | | | | | | | |_| | |__| (_) | (_| | version 1.3.1
   |_| |_|_| |_|\__, |_____\___/ \__, | https://github.com/yanminhui/tinylog
                |___/            |___/
 
@@ -44,16 +44,12 @@ SOFTWARE.
  * 示例:
  * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~cpp
  *
- * // 初始化全局对象
- *
- * INITIALIZE_TINYLOG
- *
  * // [main] 主函数
  *
  * using namespace tinylog;
  *
  * // 注册一个日志记录器
- * auto inst = g_registry->create_logger();
+ * auto inst = registry::create_logger();
  *
  * // 安装输出槽：接收日志消息
  * //     - [w]console_sink
@@ -122,6 +118,7 @@ SOFTWARE.
  * 11) 增强: 支持记录附加模式 endpage_layout (#3) v1.2.0 - 2018/06/10 yanmh
  * 12) 修正: vs2015 编译错误 (#3) v1.2.1 ----------------- 2018/06/11 yanmh
  * 13) 修正: 单例跨动态库产生多实例 (#4) v1.3.0 ---------- 2018/06/30 yanmh
+ * 14) 修正: 将单例分离到实现文件 (#4) v1.3.1 ------------ 2018/06/30 yanmh
  */
 
 #ifndef TINYTINYLOG_HPP
@@ -157,7 +154,7 @@ SOFTWARE.
 // 版本信息
 #define TINYLOG_VERSION_MAJOR 1
 #define TINYLOG_VERSION_MINOR 3
-#define TINYLOG_VERSION_PATCH 0
+#define TINYLOG_VERSION_PATCH 1  
 
 //--------------|
 // 用户可控制   |
@@ -192,6 +189,16 @@ SOFTWARE.
 #   include <unistd.h>
 #   include <sys/stat.h>
 #endif
+
+#if defined(TINYLOG_WINDOWS_API)
+#   if defined(TINYLOG_EXPORT)
+#       define TINYLOG_API __declspec(dllexport)
+#   else
+#       define TINYLOG_API __declspec(dllimport)
+#   endif // TINYLOG_EXPORT
+#else
+#   define TINYLOG_API
+#endif // TINYLOG_WINDOWS_API
 
 #define TINYLOG_CRT_WIDE_(s) L ## s
 #define TINYLOG_CRT_WIDE(s) TINYLOG_CRT_WIDE_(s)
@@ -243,11 +250,6 @@ SOFTWARE.
 #else
 #   define TINYLOG_FUNCTION __FUNCTION__
 #endif // __GNUC__
-
-#define TINYLOG_INITIALIZE \
-namespace tinylog { \
-    std::shared_ptr<registry> g_registry = std::make_shared<registry>(); \
-}
 
 #if defined(NDEBUG)
 
@@ -2319,8 +2321,7 @@ private:
 // 注册管理
 //     管理日志记录器
 //
-template<class mutexT = mutex_t>
-class basic_registry
+class TINYLOG_API registry
 {
 public:
 #if defined(TINYLOG_WINDOWS_API)
@@ -2336,145 +2337,30 @@ public:
     using logger_ptr    = std::shared_ptr<logger_t>;
 
 public:
-    basic_registry() = default;
-    basic_registry(basic_registry const&) = delete;
-    basic_registry& operator=(basic_registry const&) = delete;
-
     // 日志级别:
     //     为创建日志记录器时设置默认过滤级别
-    void set_level(level lvl)
-    {
-        std::lock_guard<mutexT> lock(mtx_);
-        for (auto& l : loggers_)
-        {
-            l.second->set_level(lvl);
-        }
-        lvl_ = lvl;
-    }
+    static void set_level(level lvl);
 
     // 添加日志记录器
     //      失败将抛出异常
-    logger_ptr create_logger(string_t const& logger_name)
-    {
-        std::lock_guard<mutexT> lock(mtx_);
-        throw_if_exists(logger_name);
-        auto p = std::make_shared<logger_t>(logger_name);
-        p->set_level(lvl_);
-        loggers_[logger_name] = p;
-        return p;
-    }
-    logger_ptr create_logger(xstring_t const& logger_name)
-    {
-        string_t name;
-        string_traits<>::convert(name, logger_name);
-        return create_logger(name);
-    }
-    logger_ptr create_logger()
-    {
-#if defined(TINYLOG_WINDOWS_API)
-        return create_logger(TINYLOG_DEFAULTW);
-#else
-        return create_logger(TINYLOG_DEFAULT);
-#endif
-    }
+    static logger_ptr create_logger(string_t const& logger_name);
+    static logger_ptr create_logger(xstring_t const& logger_name);
+    static logger_ptr create_logger();
 
-    logger_ptr add_logger(logger_ptr inst)
-    {
-        assert(inst && "logger instance point must exists");
-        auto const name = cvt(inst->name());
-        std::lock_guard<mutexT> lock(mtx_);
-        throw_if_exists(name);
-        inst->set_level(lvl_);
-        loggers_[name] = inst;
-        return inst;
-    }
+    static logger_ptr add_logger(logger_ptr inst);
 
     // 获取日志记录器
     //      失败返回空指针
-    logger_ptr get_logger(string_t const& logger_name) const
-    {
-        std::lock_guard<mutexT> lock(mtx_);
-        auto found = loggers_.find(logger_name);
-        return found == loggers_.cend() ? nullptr : found->second;
-    }
-    logger_ptr get_logger(xstring_t const& logger_name) const
-    {
-        string_t name;
-        string_traits<>::convert(name, logger_name);
-        return get_logger(name);
-    }
-    logger_ptr get_logger() const
-    {
-#if defined(TINYLOG_WINDOWS_API)
-        return get_logger(TINYLOG_DEFAULTW);
-#else
-        return get_logger(TINYLOG_DEFAULT);
-#endif
-    }
+    static logger_ptr get_logger(string_t const& logger_name);
+    static logger_ptr get_logger(xstring_t const& logger_name);
+    static logger_ptr get_logger();
 
-    void erase_logger(string_t const& logger_name)
-    {
-        std::lock_guard<mutexT> lock(mtx_);
-        loggers_.erase(logger_name);
-    }
-    void erase_logger(xstring_t const& logger_name)
-    {
-        string_t name;
-        string_traits<>::convert(name, logger_name);
-        return erase_logger(name);
-    }
-    void erase_logger()
-    {
-#if defined(TINYLOG_WINDOWS_API)
-        return erase_logger(TINYLOG_DEFAULTW);
-#else
-        return erase_logger(TINYLOG_DEFAULT);
-#endif
-    }
+    static void erase_logger(string_t const& logger_name);
+    static void erase_logger(xstring_t const& logger_name);
+    static void erase_logger();
 
-    void erase_all_logger()
-    {
-        std::lock_guard<mutexT> lock(mtx_);
-        loggers_.clear();
-    }
-
-private:
-    static string_t cvt(string_t const& xs)
-    {
-        return xs;
-    }
-    static string_t cvt(xstring_t const& xs)
-    {
-        string_t s;
-        string_traits<>::convert(s, xs);
-        return s;
-    }
-
-    void throw_if_exists(string_t const& logger_name) const
-    {
-        if (loggers_.find(logger_name) != loggers_.cend())
-        {
-            std::string name;
-            string_traits<>::convert(name, logger_name);
-            name = "logger with name \'" + name + "\' already exists";
-            throw std::system_error(std::make_error_code(std::errc::file_exists)
-                                    , name);
-        }
-    }
-
-private:
-    mutable mutexT mtx_;
-    level lvl_ = level::trace;
-    std::unordered_map<string_t, logger_ptr> loggers_;
+    static void erase_all_logger();
 };
-
-#if defined(TINYLOG_NO_REGISTRY_MUTEX)
-using registry = basic_registry<detail::null_mutex>;
-#else
-using registry = basic_registry<std::mutex>;
-#endif
-
-extern std::shared_ptr<registry> g_registry;
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -2500,9 +2386,7 @@ public:
     }
 
     explicit basic_dlprintf_base(string_t const& logger_name)
-        : logger_(g_registry
-                  ? g_registry->get_logger(logger_name)
-                  : nullptr)
+        : logger_(registry::get_logger(logger_name))
     {
     }
 
@@ -2684,9 +2568,7 @@ public:
 
     explicit basic_odlstream_base(string_t const& logger_name)
         : base(&stringbuf_)
-        , logger_(g_registry
-                  ? g_registry->get_logger(logger_name)
-                  : nullptr)
+        , logger_(registry::get_logger(logger_name))
     {
     }
 

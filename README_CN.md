@@ -58,8 +58,6 @@ using namespace tinylog;
 
 #include "tinylog.hpp"
 
-TINYLOG_INITIALIZE
-
 int main(int argc, char* argv[])
 {
     using namespace tinylog;
@@ -71,7 +69,7 @@ int main(int argc, char* argv[])
     std::locale::global(loc);
 
     // 注册一个日志记录器
-    auto inst = g_registry->create_logger();
+    auto inst = registry::create_logger();
 
     // 安装输出槽: @see std::make_shared<>
     inst->create_sink<sink::console_sink>();
