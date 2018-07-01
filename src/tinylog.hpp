@@ -191,11 +191,21 @@ SOFTWARE.
 #endif
 
 #if defined(TINYLOG_WINDOWS_API)
-#   if defined(TINYLOG_EXPORT)
+
+#   if defined(TINYLOG_EXPORTS)
 #       define TINYLOG_API __declspec(dllexport)
 #   else
 #       define TINYLOG_API __declspec(dllimport)
-#   endif // TINYLOG_EXPORT
+#   endif // TINYLOG_EXPORTS
+
+#   if !defined(TINYLOG_EXPORTS)
+#       if defined(NDEBUG)
+#           pragma comment(lib, "tinylog.lib")
+#       else
+#           pragma comment(lib, "tinylogd.lib")
+#       endif // NDEBUG
+#   endif // TINYLOG_EXPORTS
+
 #else
 #   define TINYLOG_API
 #endif // TINYLOG_WINDOWS_API
