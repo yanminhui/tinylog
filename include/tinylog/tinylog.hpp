@@ -1,13 +1,13 @@
 ﻿/*
- _____ _             _
+ ____ _             _
 |_   _(_)_ __  _   _| |    ___   __ _
   | | | | '_ \| | | | |   / _ \ / _` | TinyLog for Modern C++
-  | | | | | | | |_| | |__| (_) | (_| | version 1.3.1
+  | | | | | | | |_| | |__| (_) | (_| | version 1.4.0
   |_| |_|_| |_|\__, |_____\___/ \__, | https://github.com/yanminhui/tinylog
                |___/            |___/
 
 Licensed under the MIT License <http://opensource.org/licenses/MIT>.
-Copyright (c) 2018 颜闽辉 <mailto:yanminhui163@163.com>.
+Copyright (c) 2018-2019 yanminhui <mailto:yanminhui163@163.com>.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -26,100 +26,61 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+```.cpp
+
+using namespace tinylog;
+
+void main()
+{
+   auto inst = registry::create_logger();
+
+   // setup sink:
+   //   - [w]console_sink
+   //   - [w]file_sink
+   //   - [w]u8_file_sink
+   //   - [w]msvc_sink
+   //
+   // @see std::make_shared
+   auto sk = inst->create_sink<sink::file_sink>("d:\\default.log");
+   sk->enable_verbose(true);
+
+   // filter level.
+   inst->set_level(info);
+
+   // usage:
+   //   - char
+   //            |-- lout_<suffix>、lprintf_<suffix>
+   //            |-- lout(<level>)、lprintf(<level>)
+   //   - wchar_t
+   //            |-- wlout_<suffix>、lwprintf_<suffix>
+   //            |-- wlout(<level>)、lwprintf(<level>)
+   //
+   // suffix: t --> trace
+   //         d --> debug
+   //         i --> info
+   //         w --> warn
+   //         e --> error
+   //         f --> fatal
+   //
+   // @see std::cout \ std::wcout \ printf \ wprintf
+
+   // 1
+   lout_i << "module: pass" << std::endl;
+
+   // 2
+   lout(info) << "module: pass" << std::endl;
+   lout_if(info, true) << "module: pass" << std::endl;
+
+   // 3
+   lprintf_i("module: %s\n", "pass");
+
+   // 4
+   lprintf(info, "module: %s\n", "pass");
+   lprintf_if(info, true, "module: %ls\n", "pass");
+
+```
 */
-/**
- * \brief TinyLog: 一个简易的日志工具
- *
- * 特性:
- *     - 支持 l[w]printf 参数格式化及 [w]lout 流化记录;
- *     - 支持 unicode(wchar_t) 及 narrow(char) 输出;
- *     - 支持输出 ansi、utf-8 格式日志文件;
- *     - 继承 basic_sink<> 可定制日志输出槽将日志输出至不同地方;
- *     - 支持针对不同槽定制日志布局;
- *     - 支持 logger::add_sink<> 同时安装多个日志输出槽;
- *     - 支持 STL 容器格式化输出；
- *     - 提供 hexdump 以十六进制显示内容;
- *     - 线程安全;
- *
- * 示例:
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~cpp
- *
- * // [main] 主函数
- *
- * using namespace tinylog;
- *
- * // 注册一个日志记录器
- * auto inst = registry::create_logger();
- *
- * // 安装输出槽：接收日志消息
- * //     - [w]console_sink
- * //           终端槽, 不同级别日志以不同颜色区分.
- * //
- * //     - [w]file_sink
- * //           文件槽, 默认以追加的形式记录日志, 当日志文件大小到达阀值,
- * //       将产生一个以 .bak 为后缀的备份, 如果 .bak 文件已经存在将被替换.
- * //
- * //     - [w]u8_file_sink
- * //           UTF-8 文件槽, 产生以 UTF-8 格式编码的日志文件,
- * //     其它行为与 [w]file_sink 一样.
- * //
- * //     - [w]msvc_sink
- * //           visual studio debug console output.
- * //
- * inst->create_sink<sink::wfile_sink>("d:\\default.log");
- *
- * // 过滤日志级别
- * inst->set_level(info);
- *
- * // [usage] 输出日志
- * //    - char
- * //            |-- 缩写 lout_<suffix>、lprintf_<suffix>
- * //            |-- 通用 lout(<level>)、lprintf(<level>)
- * //    - wchar_t
- * //            |-- 缩写 wlout_<suffix>、lwprintf_<suffix>
- * //            |-- 通用 wlout(<level>)、lwprintf(<level>)
- * //
- * // suffix: t --> trace
- * //         d --> debug
- * //         i --> info
- * //         w --> warn
- * //         e --> error
- * //         f --> fatal
- * // 提示: 使用方式 @see std::cout / std::wcout 及 printf / wprintf
- *
- * // 方式1
- * wlout_i << L"module: pass" << std::endl;
- *
- * // 方式2
- * wlout(tinylog::info) << L"module: pass" << std::endl;
- *
- * // 方式3
- * lwprintf_i(L"module: %ls\n", L"pass");
- *
- * // 方式4
- * lwprintf(tinylog::info, L"module: %ls\n", L"pass");
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- *
- *  @author 颜闽辉
- *  @date   2018-05-20
- *
- *****************************************************************************
- *
- * 1) 优化：重新调整代码结构, 支持针对不同槽定制布局v1.1.0 2018/05/27 yanmh
- * 2) 修正：wlout 拼写错误，layout using 错误. ----------- 2018/05/28 yanmh
- * 3) 修正：wcstombs 依赖全局 locale, std::cout 异常v1.1.1 2018/05/28 yanmh
- * 4) 优化：解耦终端颜色控制日志槽 v1.1.2 ---------------- 2018/06/01 yanmh
- * 5) 增强：支持 wchar_t/char 混合输出 v1.1.3 ------------ 2018/06/02 yanmh
- * 6) 增强: 模板参数可配互斥类型，支持槽过滤级别 v1.1.4 -- 2018/06/02 yanmh
- * 7) 优化: 日志时间精确到微秒 v1.1.5 -------------------- 2018/06/03 yanmh
- * 8) 增强: 支持条件日志 l[w]printf_if/[w]lout_if  v1.1.6  2018/06/03 yanmh
- * 9) 增强: 新增 msvc_sink(OutputDebugString(...)) v1.1.7  2018/06/03 yanmh
- * 10) 增强: 支持多个日志记录器 -------------------------- 2018/06/09 yanmh
- * 11) 增强: 支持记录附加模式 endpage_layout (#3) v1.2.0 - 2018/06/10 yanmh
- * 12) 修正: vs2015 编译错误 (#3) v1.2.1 ----------------- 2018/06/11 yanmh
- * 13) 修正: 单例跨动态库产生多实例 (#4) v1.3.0 ---------- 2018/06/30 yanmh
- * 14) 修正: 将单例分离到实现文件 (#4) v1.3.1 ------------ 2018/06/30 yanmh
- */
 
 #ifndef TINYTINYLOG_HPP
 #define TINYTINYLOG_HPP
@@ -138,43 +99,61 @@ SOFTWARE.
 #include <locale>
 #include <iomanip>
 #include <iostream>
-#include <memory>
 #include <mutex>
 #include <sstream>
 #include <string>
 #include <system_error>
 #include <thread>
-#include <tuple>
-#include <type_traits>
 #include <unordered_map>
-#include <utility>
-#include <valarray>
 #include <vector>
 
-// 版本信息
+// Tinylog version.
 #define TINYLOG_VERSION_MAJOR 1
-#define TINYLOG_VERSION_MINOR 3
-#define TINYLOG_VERSION_PATCH 1  
+#define TINYLOG_VERSION_MINOR 4
+#define TINYLOG_VERSION_PATCH 0
 
-//--------------|
-// 用户可控制   |
-//--------------|
+//////////////////////////////////////////////////////////////////////////////
+//
+// User Customize.
+//
+//////////////////////////////////////////////////////////////////////////////
 
-// 使用单线程模式
+// Tinylog is built as shared library default, but use headers only is enabled.
+//
+// @attention Use shared library is recommended that C++ template is
+//            instantiated to different instance in shared library.
+
+// #define TINYLOG_USE_HEADER_ONLY 1
+
+
+// You can enable single thread (a.k.a non-thread-safe), just remove the
+// double-slash.
+
 // #define TINYLOG_USE_SINGLE_THREAD 1
-// #define TINYLOG_NO_REGISTRY_MUTEX 1
 
-// 禁止STL容器日志
-// #define TINYLOG_DISABLE_STL_LOGING 1
 
-// 禁止终端输出颜色
+// Normally logger is registed at main start (i.e. in the main
+// execution thread), but thread-safe is not needed in this case
+// (default).
+
+// #define TINYLOG_REGISTRY_THREAD_SAFE 1
+
+
+// Give more output, available fields: __FILE__, __LINE__, __FUNCTION__.
+
+// #define TINYLOG_CANCEL_VERBOSE 1
+
+
+// Enables using colors in terminal output (the default). To disable colors
+// output, please define macro TINYLOG_DISABLE_CONSOLE_COLOR.
+
 // #define TINYLOG_DISABLE_CONSOLE_COLOR 1
 
-// 使用简体中文
-// #define TINYLOG_USE_SIMPLIFIED_CHINA 1
 
-#if defined(TINYLOG_USE_SINGLE_THREAD) && !defined(TINYLOG_NO_REGISTRY_MUTEX)
-#   define TINYLOG_NO_REGISTRY_MUTEX 1
+// --- User Customize End ---
+
+#if defined(TINYLOG_USE_SINGLE_THREAD) && defined(TINYLOG_REGISTRY_THREAD_SAFE)
+#   undef TINYLOG_REGISTRY_THREAD_SAFE
 #endif
 
 #if defined(_WIN32) || defined(__CYGWIN__)
@@ -190,30 +169,22 @@ SOFTWARE.
 #   include <sys/stat.h>
 #endif
 
-#if defined(TINYLOG_WINDOWS_API)
-
-#   if defined(TINYLOG_EXPORTS)
-#       define TINYLOG_API __declspec(dllexport)
-#   else
-#       define TINYLOG_API __declspec(dllimport)
-#   endif // TINYLOG_EXPORTS
-
-#   if !defined(TINYLOG_EXPORTS)
-#       if defined(NDEBUG)
-#           pragma comment(lib, "tinylog.lib")
-#       else
-#           pragma comment(lib, "tinylogd.lib")
-#       endif // NDEBUG
-#   endif // TINYLOG_EXPORTS
-
-#else
+#if defined(TINYLOG_USE_HEADER_ONLY) || !defined(TINYLOG_WINDOWS_API)
 #   define TINYLOG_API
-#endif // TINYLOG_WINDOWS_API
+#elif defined(TINYLOG_EXPORTS) || defined(tinylog_EXPORTS)
+#   define TINYLOG_API __declspec(dllexport)
+#else
+#   define TINYLOG_API __declspec(dllimport)
+#   pragma comment(lib, "tinylog.lib")
+#endif // TINYLOG_USE_HEADER_ONLY || !TINYLOG_WINDOWS_API
+
+#if defined(TINYLOG_USE_HEADER_ONLY) && defined(TINYLOG_EXPORTS)
+#       error must not use TINYLOG_USE_HEADER_ONLY and TINYLOG_EXPORTS at the same time.
+#endif // TINYLOG_USE_HEADER_ONLY && TINYLOG_EXPORTS
 
 #define TINYLOG_CRT_WIDE_(s) L ## s
 #define TINYLOG_CRT_WIDE(s) TINYLOG_CRT_WIDE_(s)
 
-// 间隔符
 #define TINYLOG_SEPARATOR " "
 #define TINYLOG_SEPARATORW TINYLOG_CRT_WIDE(TINYLOG_SEPARATOR)
 
@@ -223,29 +194,13 @@ SOFTWARE.
 #define TINYLOG_DEFAULT "_TINYLOG_DEFAULT_"
 #define TINYLOG_DEFAULTW TINYLOG_CRT_WIDE(TINYLOG_DEFAULT)
 
-#if defined(TINYLOG_USE_SIMPLIFIED_CHINA)
-
-// 日志级别
-#   define TINYLOG_LEVEL_TRACE  "跟踪"
-#   define TINYLOG_LEVEL_DEBUG  "调试"
-#   define TINYLOG_LEVEL_INFO   "信息"
-#   define TINYLOG_LEVEL_WARN   "警告"
-#   define TINYLOG_LEVEL_ERROR  "错误"
-#   define TINYLOG_LEVEL_FATAL  "严重"
-#   define TINYLOG_LEVEL_UNKOWN "未知"
-
-#else
-
-// 日志级别
-#   define TINYLOG_LEVEL_TRACE  "TRACE"
-#   define TINYLOG_LEVEL_DEBUG  "DEBUG"
-#   define TINYLOG_LEVEL_INFO   "INFO"
-#   define TINYLOG_LEVEL_WARN   "WARN"
-#   define TINYLOG_LEVEL_ERROR  "ERROR"
-#   define TINYLOG_LEVEL_FATAL  "FATAL"
-#   define TINYLOG_LEVEL_UNKOWN "UNKNOWN"
-
-#endif // TINYLOG_USE_SIMPLIFIED_CHINA
+#define TINYLOG_LEVEL_TRACE  "TRACE"
+#define TINYLOG_LEVEL_DEBUG  "DEBUG"
+#define TINYLOG_LEVEL_INFO   "INFO"
+#define TINYLOG_LEVEL_WARN   "WARN"
+#define TINYLOG_LEVEL_ERROR  "ERROR"
+#define TINYLOG_LEVEL_FATAL  "FATAL"
+#define TINYLOG_LEVEL_UNKOWN "UNKNOWN"
 
 #define TINYLOG_LEVEL_TRACEW TINYLOG_CRT_WIDE(TINYLOG_LEVEL_TRACE)
 #define TINYLOG_LEVEL_DEBUGW TINYLOG_CRT_WIDE(TINYLOG_LEVEL_DEBUG)
@@ -261,10 +216,11 @@ SOFTWARE.
 #   define TINYLOG_FUNCTION __FUNCTION__
 #endif // __GNUC__
 
-#if defined(NDEBUG)
+// dlout("logger_name", info) << "message" << std::endl;
+#if defined(TINYLOG_CANCEL_VERBOSE)
 
-#   define dlprintf(ln, lvl, fmt, ...) \
-    for (::tinylog::detail::dlprintf_impl _tl_strm_((ln), (lvl)) \
+#   define dlprintf(ln, lvl, fmt, ...)                  \
+    for (::tinylog::detail::dlprintf_impl _tl_strm_((ln), (lvl))        \
          ; _tl_strm_; _tl_strm_.flush()) _tl_strm_((fmt), ##__VA_ARGS__)
 
 #   define dlwprintf(ln, lvl, fmt, ...) \
@@ -283,16 +239,16 @@ SOFTWARE.
 
 #   define dlprintf(ln, lvl, fmt, ...) \
     for (::tinylog::detail::dlprintf_d_impl _tl_strm_((ln), (lvl) \
-            , __FILE__, __LINE__, TINYLOG_FUNCTION) \
+        , __FILE__, __LINE__, TINYLOG_FUNCTION) \
          ; _tl_strm_; _tl_strm_.flush()) _tl_strm_((fmt), ##__VA_ARGS__)
 
-#   define dlwprintf(ln, lvl, fmt, ...) \
+#   define dlwprintf(ln, lvl, fmt, ...)                \
     for (::tinylog::detail::dlwprintf_d_impl _tl_strm_((ln), (lvl) \
             , TINYLOG_CRT_WIDE(__FILE__), __LINE__ \
             , ::tinylog::a2w(TINYLOG_FUNCTION)) \
          ; _tl_strm_; _tl_strm_.flush()) _tl_strm_((fmt), ##__VA_ARGS__)
 
-#   define dlout(ln, lvl) \
+#   define dlout(ln, lvl)                     \
     for (::tinylog::detail::odlstream_d _tl_strm_((ln), (lvl) \
             , __FILE__, __LINE__, TINYLOG_FUNCTION) \
          ; _tl_strm_; _tl_strm_.flush()) _tl_strm_
@@ -303,9 +259,9 @@ SOFTWARE.
             , ::tinylog::a2w(TINYLOG_FUNCTION)) \
          ; _tl_strm_; _tl_strm_.flush()) _tl_strm_
 
-#endif  // NDEBUG
+#endif // defined(TINYLOG_CANCEL_VERBOSE)
 
-// 默认日志记录器
+// lout(info) << "message" << std::endl;
 #define lprintf(lvl, fmt, ...) \
     dlprintf(TINYLOG_DEFAULT, (lvl), (fmt), ##__VA_ARGS__)
 #define lwprintf(lvl, fmt, ...) \
@@ -315,7 +271,7 @@ SOFTWARE.
 #define wlout(lvl) \
     wdlout(TINYLOG_DEFAULTW, (lvl))
 
-// 条件日志
+// dlout_if("logger_name", info, true) << "message" << std::endl;
 #define dlprintf_if(ln, lvl, boolexpr, fmt, ...) \
     if ((boolexpr)) dlprintf((ln), (lvl), (fmt), ##__VA_ARGS__)
 #define dlwprintf_if(ln, lvl, boolexpr, fmt, ...) \
@@ -325,7 +281,7 @@ SOFTWARE.
 #define wdlout_if(ln, lvl, boolexpr) \
     if ((boolexpr)) wdlout((ln), (lvl))
 
-// 条件日志：默认日志记录器
+// lout_if(info, true) << "message" << std::endl;
 #define lprintf_if(lvl, boolexpr, fmt, ...) \
     if ((boolexpr)) lprintf((lvl), (fmt), ##__VA_ARGS__)
 #define lwprintf_if(lvl, boolexpr, fmt, ...) \
@@ -335,7 +291,7 @@ SOFTWARE.
 #define wlout_if(lvl, boolexpr) \
     if ((boolexpr)) wlout((lvl))
 
-// 简写别名
+// lout_i << "message" << std::endl;
 #define lprintf_t(fmt, ...) lprintf(::tinylog::trace, fmt, ##__VA_ARGS__)
 #define lwprintf_t(fmt, ...) lwprintf(::tinylog::trace, fmt, ##__VA_ARGS__)
 #define lout_t lout(::tinylog::trace)
@@ -369,37 +325,9 @@ SOFTWARE.
 
 namespace tinylog
 {
-//////////////////////////////////////////////////////////////////////////////
-//
-// 辅助函数
-//
-//////////////////////////////////////////////////////////////////////////////
 namespace detail
 {
-//
-// 实现 c++14 make_index_sequence
-//
-// @see https://github.com/hokein/Wiki/wiki/
-//      How to unpack a std::tuple to a function with multiple arguments?
-//
-template <size_t... Indices>
-struct indices_holder {};
-
-// Usage: indices_generator<N>::type
-template <size_t Index, size_t... Indices>
-struct indices_generator
-{
-    using type = typename indices_generator<Index - 1
-                 , Index - 1, Indices...>::type;
-};
-
-template <size_t... Indices>
-struct indices_generator<0, Indices...>
-{
-    using type = indices_holder<Indices...>;
-};
-
-// 伪装成互斥量
+// Dummy mutex.
 struct null_mutex
 {
     void lock() {}
@@ -410,25 +338,25 @@ struct null_mutex
     }
 };
 
-// get current time
 struct time_value
 {
     std::time_t tv_sec;
     std::size_t tv_usec;
 };
 
+// Get current time.
 inline time_value curr_time()
 {
     using namespace std::chrono;
 
-    auto const tp   = system_clock::now();
-    auto const dtn  = tp.time_since_epoch();
-    auto const sec  = duration_cast<seconds>(dtn).count();
-    auto const usec = duration_cast<microseconds>(dtn).count() % 1000000;
+    auto const tp           = system_clock::now();
+    auto const dtn          = tp.time_since_epoch();
+    std::time_t const sec   = duration_cast<seconds>(dtn).count();
+    std::size_t const usec  = duration_cast<microseconds>(dtn).count() % 1000000;
     return { sec, static_cast<std::size_t>(usec) };
 }
 
-// get current thread id
+// Get current thread id.
 inline std::size_t curr_thrd_id()
 {
     auto get_thrd_id = []() -> std::size_t
@@ -445,8 +373,9 @@ inline std::size_t curr_thrd_id()
     return thrd_id;
 }
 
-// 实现 strftime 格式化当前时间
-// 返回 std::basic_string<charT>
+// Format date time.
+//
+// @see strftime
 template <class strftimeT, class charT>
 std::basic_string<charT>
 strftime_impl(strftimeT strftime_cb, charT const* fmt, time_value const& tv)
@@ -477,15 +406,14 @@ strftime_impl(strftimeT strftime_cb, charT const* fmt, time_value const& tv)
     return time_buffer + oss.str();
 }
 
-// 确保 l[w]printf 可变参数有效
-//
-// 如，可防止以下错误:
+// Ensure l[w]printf's argument is available. Try make compile error,
+// because printf can't dump std::string.
+// e.g.
 //      std::string s("hello");
-//      std::printf("%s", s); // printf 不支持 std::string，但又不报错。
-//
+//      std::printf("%s", s);
 inline void ensure_va_args_safe_A() {}
 template <class T, class... Args
-          , typename std::enable_if<!std::is_class<T>::value
+      , typename std::enable_if<!std::is_class<T>::value
                                     && !std::is_same
                                     <typename std::remove_cv
                                      <typename std::remove_pointer
@@ -511,9 +439,9 @@ void ensure_va_args_safe_W(T const&, Args... args)
     ensure_va_args_safe_W(args...);
 }
 
+// Construct string message from avarible arguments.
 //
-// s[w]printf 实现: 将可变参数格式化成字符串.
-//
+// @see s[w]printf
 template <class charT>
 struct sprintf_constructor;
 
@@ -526,7 +454,7 @@ struct sprintf_constructor<char>
     template <class... Args>
     static void construct(string_t& s, string_t const& fmt, Args&&... args)
     {
-#if !defined(NDEBUG)
+#if !defined(TINYLOG_CANCEL_VERBOSE)
         ensure_va_args_safe_A(std::forward<Args>(args)...);
 #endif
         for (int n = BUFSIZ; true; n += BUFSIZ)
@@ -558,7 +486,7 @@ struct sprintf_constructor<wchar_t>
     template <class... Args>
     static void construct(string_t& s, string_t const& fmt, Args&&... args)
     {
-#if !defined(NDEBUG)
+#if !defined(TINYLOG_CANCEL_VERBOSE)
         ensure_va_args_safe_W(std::forward<Args>(args)...);
 #endif
         for (int n = BUFSIZ; true; n += BUFSIZ)
@@ -581,7 +509,7 @@ struct sprintf_constructor<wchar_t>
     }
 };
 
-// 获取文件大小
+// Get file size.
 inline std::uintmax_t file_size(std::string const& filename)
 {
 #if defined(TINYLOG_WINDOWS_API)
@@ -612,10 +540,10 @@ inline std::uintmax_t file_size(std::string const& filename)
 
     return fn_stat.st_size;
 
-#endif
+#endif // TINYLOG_WINDOWS_API
 }
 
-// 文件重命名: 移动文件
+// Moves an existing file or directory, including its children.
 inline void file_rename(std::string const& old
                         , std::string const& now)
 {
@@ -639,7 +567,8 @@ inline void file_rename(std::string const& old
 #endif
 }
 
-// 生成格式标题:
+// Generate string message.
+//
 // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // +                                                          +
 // +                   2018/05/20 15:14:23                    +
@@ -651,7 +580,7 @@ gen_title(std::basic_string<charT> const& tm_text, charT sep)
 {
     constexpr auto wide = 79U;
 
-    // 上方
+    // top
     std::basic_ostringstream<charT> oss;
     oss << std::endl;
     for (size_t i = 0; i != wide; ++i)
@@ -660,7 +589,7 @@ gen_title(std::basic_string<charT> const& tm_text, charT sep)
     }
     oss << std::endl;
 
-    // 中间
+    // center
     oss << sep << std::setw(wide-1) << sep << std::endl;
     if (tm_text.size() <= wide / 2)
     {
@@ -673,7 +602,7 @@ gen_title(std::basic_string<charT> const& tm_text, charT sep)
         oss << sep << std::setw(wide - 1) << sep << std::endl;
     }
 
-    // 下方
+    // bottom
     for (size_t i = 0; i != wide; ++i)
     {
         oss << sep;
@@ -686,13 +615,10 @@ gen_title(std::basic_string<charT> const& tm_text, charT sep)
 
 //////////////////////////////////////////////////////////////////////////////
 //
-// 编码转换
+// String Charset Convertion.
 //
 //////////////////////////////////////////////////////////////////////////////
 
-//
-// 不同类型编码字符串转换
-//
 template <typename = void, typename = void>
 struct string_traits;
 
@@ -712,9 +638,6 @@ struct string_traits<u8string>
     static void convert(To& to, From const& from);
 };
 
-//
-// 特定编码字符串构建
-//
 namespace detail
 {
 
@@ -745,8 +668,8 @@ struct ansi_constructor<char>
         using cvt_facet = std::codecvt<from_type, to_type, std::mbstate_t>;
 
         constexpr std::size_t codecvt_buf_size = BUFSIZ;
-        // perhaps too large, but that's OK
-        // encodings like shift-JIS need some prefix space
+        // Perhaps too large, but that's OK.
+        // Encodings like shift-JIS need some prefix space
         std::size_t buf_size = from.length() * 4 + 4;
         if (buf_size < codecvt_buf_size)
         {
@@ -809,7 +732,7 @@ struct ansi_constructor<wchar_t>
         using cvt_facet = std::codecvt<to_type, from_type, std::mbstate_t>;
 
         constexpr std::size_t codecvt_buf_size = BUFSIZ;
-        // perhaps too large, but that's OK
+        // Perhaps too large, but that's OK
         std::size_t buf_size = from.length() * 3;
         if (buf_size < codecvt_buf_size)
         {
@@ -909,9 +832,7 @@ struct utf8_constructor<wchar_t>
 
 }  // namespace  detail
 
-//
-// implement
-//
+// Implement
 template <class To, class From>
 void string_traits<void>::convert(To& to, From const& from)
 {
@@ -936,7 +857,7 @@ inline std::wstring a2w(std::string const& s)
 
 //////////////////////////////////////////////////////////////////////////////
 //
-// 日志级别
+// Log Level.
 //
 //////////////////////////////////////////////////////////////////////////////
 
@@ -1012,7 +933,7 @@ inline std::basic_string<wchar_t> to_string(level lvl)
 
 //////////////////////////////////////////////////////////////////////////////
 //
-// 记录结构
+// Record Entry.
 //
 //////////////////////////////////////////////////////////////////////////////
 
@@ -1082,8 +1003,7 @@ using wrecord_d = basic_record_d<wchar_t>;
 
 //////////////////////////////////////////////////////////////////////////////
 //
-// 构建布局：
-//     序列化记录结构
+// Build Layout: Convert record entry to log message string.
 //
 //////////////////////////////////////////////////////////////////////////////
 namespace detail
@@ -1092,14 +1012,15 @@ namespace detail
 template <class deriveT, class charT>
 struct layout_constructor_base
 {
-    using derive    = deriveT;
-    using char_type = charT;
-    using string_t  = std::basic_string<char_type>;
+    using derive     = deriveT;
+    using char_type  = charT;
+    using string_t   = std::basic_string<char_type>;
     using ostream_t  = std::basic_ostringstream<char_type>;
-    using record    = basic_record<char_type>;
-    using record_d  = basic_record_d<char_type>;
+    using record     = basic_record<char_type>;
+    using record_d   = basic_record_d<char_type>;
 
-    static void construct(string_t& s, record const& r, string_t& cache)
+    static void construct(string_t& s, record const& r
+                          , string_t& cache, bool /*verbose*/)
     {
         ostream_t strm;
         strm.imbue(std::locale::classic());
@@ -1108,12 +1029,16 @@ struct layout_constructor_base
         s = strm.str();
     }
 
-    static void construct(string_t& s, record_d const& r, string_t& cache)
+    static void construct(string_t& s, record_d const& r
+                          , string_t& cache, bool verbose)
     {
         ostream_t strm;
         strm.imbue(std::locale::classic());
         derive::record_prefix(strm, r, cache);
-        derive::record_debug(strm, r, cache);
+        if (verbose)
+        {
+            derive::record_debug(strm, r, cache);
+        }
         derive::record_suffix(strm, r, cache);
         s = strm.str();
     }
@@ -1125,7 +1050,7 @@ protected:
 
     // [prefix] time
     static void record_prefix(ostream_t& strm
-                              , record const& r, string_t& cache)
+                              , record const& r, string_t& /*cache*/)
     {
         format_time(strm, r);
     }
@@ -1188,19 +1113,19 @@ struct layout_constructor<char>
 
 protected:
     static void record_suffix(ostream_t& strm
-                              , record const& r, string_t& cache)
+                              , record const& r, string_t& /*cache*/)
     {
         strm << sep << "[" << to_string<char_type>(r.lvl) << "]"
-            << sep << "#" << r.id
-            << sep << r.message;
+             << sep << "#" << r.id
+             << sep << r.message;
         end_with(strm, lf);
     }
 
     static void record_debug(ostream_t& strm
-                             , record_d const& r, string_t& cache)
+                             , record_d const& r, string_t& /*cache*/)
     {
         strm << sep << "(" << r.file
-            << ", " << r.line << ", " << r.func << ")";
+             << ", " << r.line << ", " << r.func << ")";
     }
 };
 
@@ -1219,25 +1144,25 @@ struct layout_constructor<wchar_t>
 
 protected:
     static void record_prefix(ostream_t& strm
-                              , record const& r, string_t& cache)
+                              , record const& r, string_t& /*cache*/)
     {
         format_time(strm, r);
     }
 
     static void record_suffix(ostream_t& strm
-                              , record const& r, string_t& cache)
+                              , record const& r, string_t& /*cache*/)
     {
         strm << sep << L"[" << to_string<char_type>(r.lvl) << L"]"
-            << sep << L"#" << r.id
-            << sep << r.message;
+             << sep << L"#" << r.id
+             << sep << r.message;
         end_with(strm, lf);
     }
 
     static void record_debug(ostream_t& strm
-                             , record_d const& r, string_t& cache)
+                             , record_d const& r, string_t& /*cache*/)
     {
         strm << sep << L"(" << r.file
-            << L", " << r.line << L", " << r.func << L")";
+             << L", " << r.line << L", " << r.func << L")";
     }
 };
 
@@ -1271,7 +1196,7 @@ protected:
         if (cache.empty())
         {
             strm << sep << "[" << to_string<char_type>(r.lvl) << "]"
-                << sep << "#" << r.id << sep;
+                 << sep << "#" << r.id << sep;
         }
 
         if (!r.message.empty() && (*r.message.crbegin() == lf))
@@ -1293,7 +1218,7 @@ protected:
         if (cache.empty())
         {
             strm << sep << "(" << r.file
-                << ", " << r.line << ", " << r.func << ")";
+                 << ", " << r.line << ", " << r.func << ")";
         }
     }
 };
@@ -1302,11 +1227,9 @@ template <>
 struct endpage_constructor<wchar_t>
     : public layout_constructor_base<endpage_constructor<wchar_t>, wchar_t>
 {
-    friend struct layout_constructor_base<endpage_constructor<wchar_t>
-        , wchar_t>;
+    friend struct layout_constructor_base<endpage_constructor<wchar_t>, wchar_t>;
 
-    using base = layout_constructor_base<endpage_constructor<wchar_t>
-        , wchar_t>;
+    using base = layout_constructor_base<endpage_constructor<wchar_t>, wchar_t>;
 
     static constexpr auto sep = TINYLOG_SEPARATORW;
     static constexpr auto lf  = L'\f';
@@ -1327,7 +1250,7 @@ protected:
         if (cache.empty())
         {
             strm << sep << L"[" << to_string<char_type>(r.lvl) << L"]"
-                << sep << L"#" << r.id << sep;
+                 << sep << L"#" << r.id << sep;
         }
 
         if (!r.message.empty() && (*r.message.crbegin() == lf))
@@ -1349,7 +1272,7 @@ protected:
         if (cache.empty())
         {
             strm << sep << L"(" << r.file
-                << L", " << r.line << L", " << r.func << L")";
+                 << L", " << r.line << L", " << r.func << L")";
         }
     }
 };
@@ -1358,49 +1281,40 @@ protected:
 
 //////////////////////////////////////////////////////////////////////////////
 //
-// 格式化器：
-//     构建布局, 将布局生成消息.
+// Build Formatter：Use layout constructor generate log message string.
 //
 //////////////////////////////////////////////////////////////////////////////
 
-//
-// 默认布局: 用户可定制, 实现不同布局.
-//
-// @note this is default layout.
-//
 struct default_layout
 {
     template <class stringT, class recordT>
-    static void to_string(stringT& s, recordT const& r, stringT& cache)
+    static void to_string(stringT& s, recordT const& r
+                          , stringT& cache, bool verbose)
     {
         using char_type = typename stringT::value_type;
-        detail::layout_constructor<char_type>::construct(s, r, cache);
+        detail::layout_constructor<char_type>::construct(s, r, cache, verbose);
     }
 };
 
+// Log record breaks when message contains form feed (i.e. \f).
 //
-// 页面布局
-//     遇到 \f 才转义为换行，否则只输出原文本.
-//     即实现类 linux 启动界面的效果，如：loading......ok
-//     e.g.
-//          lout(info) << "loading......";
-//          lout(info) << "ok\f";
+// loading......ok
+// e.g.
+//   lout(info) << "loading......";
+//   lout(info) << "ok\f";
 //
-// @warn 确保不存在资源竟争，否则可能出现未定义行为.
-//
+// @warn non-thread-safe.
 struct endpage_layout
 {
     template <class stringT, class recordT>
-    static void to_string(stringT& s, recordT const& r, stringT& cache)
+    static void to_string(stringT& s, recordT const& r
+                          , stringT& cache, bool verbose)
     {
         using char_type = typename stringT::value_type;
-        detail::endpage_constructor<char_type>::construct(s, r, cache);
+        detail::endpage_constructor<char_type>::construct(s, r, cache, verbose);
     }
 };
 
-//
-// 格式化工具: 提供格式化方法，利用布局将记录序列化.
-//
 template <class charT, class layoutT = default_layout>
 struct formatter
 {
@@ -1410,23 +1324,26 @@ public:
 
 public:
     template <class recordT
-        , typename std::enable_if<std::is_same<typename recordT::char_type
-            , char_type>::value, int>::type = 0>
-    typename recordT::string_t format(recordT const& r)
+              , typename std::enable_if
+              <std::is_same<typename recordT::char_type
+                            , char_type>::value, int>::type = 0>
+    typename recordT::string_t format(recordT const& r, bool verbose)
     {
         typename recordT::string_t s;
-        layoutT::to_string(s, r, cache_);
+        layoutT::to_string(s, r, cache_, verbose);
         return s;
     }
 
+    // String charset convertion is needed.
     template <class recordT
-        , typename std::enable_if<!std::is_same<typename recordT::char_type
-            , char_type>::value, int>::type = 0>
-    typename recordT::string_t format(recordT const& r)
+              , typename std::enable_if
+              <!std::is_same<typename recordT::char_type
+                             , char_type>::value, int>::type = 0>
+    typename recordT::string_t format(recordT const& r, bool verbose)
     {
         typename recordT::string_t s, cache;
         string_traits<>::convert(cache, cache_);
-        layoutT::to_string(s, r, cache);
+        layoutT::to_string(s, r, cache, verbose);
         string_traits<>::convert(cache_, cache);
         return s;
     }
@@ -1437,7 +1354,7 @@ private:
 
 //////////////////////////////////////////////////////////////////////////////
 //
-// 终端颜色样式
+// Colors Support in Terminal Output.
 //
 //////////////////////////////////////////////////////////////////////////////
 namespace detail
@@ -1560,10 +1477,10 @@ struct basic_style_impl
         ::GetConsoleScreenBufferInfo(handle, &info);
 
         info.wAttributes &= 0xFF80;
-        using attr_t    = decltype(info.wAttributes);
-        auto fg         = static_cast<attr_t>(c.fg);
-        auto bg         = (info.wAttributes & 0x70) | static_cast<attr_t>(c.bg);
-        auto em         = static_cast<attr_t>(c.em);
+        using attr_t     = decltype(info.wAttributes);
+        auto fg          = static_cast<attr_t>(c.fg);
+        auto bg          = (info.wAttributes & 0x70) | static_cast<attr_t>(c.bg);
+        auto em          = static_cast<attr_t>(c.em);
 
         info.wAttributes |= fg;
         info.wAttributes |= bg;
@@ -1648,12 +1565,14 @@ void style(std::basic_string<charT>& color)
 
 //////////////////////////////////////////////////////////////////////////////
 //
-// 日志输出槽:
-//     使用者可以定制，实现属于自己的槽，使日志消息输出到不同对象上。
+// Log Sink:
+//   - console_sink
+//   - file_sink
+//   - u8_file_sink
+//   - msvc_sink
 //
 //////////////////////////////////////////////////////////////////////////////
 
-// 互斥量类型
 #if defined(TINYLOG_USE_SINGLE_THREAD)
 using mutex_t = detail::null_mutex;
 #else
@@ -1662,12 +1581,7 @@ using mutex_t = std::mutex;
 
 namespace sink
 {
-//
-// 抽象基类:
-//     使用者可以继承 basic_sink<> 实现，实现属于自己的槽。
-//
-// @attention 类中的纯虚函数一定要实现。
-//
+
 template <class charT>
 class basic_sink_base
 {
@@ -1696,20 +1610,27 @@ public:
         return lvl_;
     }
 
-    // 是否打开准备好接收数据
-    virtual bool is_open() const = 0;
+    void enable_verbose(bool enable)
+    {
+        verbose_ = enable;
+    }
+    bool is_verbose() const
+    {
+        return verbose_;
+    }
 
-    // 消费数据
+    virtual bool is_open() const = 0;
     virtual void consume(basic_record<char_type> const& r) = 0;
     virtual void consume(basic_record_d<char_type> const& r) = 0;
 
 private:
-    level lvl_ = level::trace;
+    level lvl_      = level::trace;
+    bool verbose_   = false;
 };
 
 template <class charT, class layoutT = default_layout
-    , class mutexT = mutex_t
-    , class formatterT = formatter<charT, layoutT>>
+          , class mutexT = mutex_t
+          , class formatterT = formatter<charT, layoutT>>
 class basic_sink : public basic_sink_base<charT>
 {
 public:
@@ -1719,13 +1640,13 @@ public:
 
     void consume(basic_record<char_type> const& r) override final
     {
-        auto msg = fmt_.format(r);
+        auto msg = fmt_.format(r, base::is_verbose());
         write(r.lvl, msg);
     }
 
     void consume(basic_record_d<char_type> const& r) override final
     {
-        auto msg = fmt_.format(r);
+        auto msg = fmt_.format(r, base::is_verbose());
         write(r.lvl, msg);
     }
 
@@ -1738,7 +1659,7 @@ private:
         }
 
         before_write(lvl, msg);
-        {   // 保护中...
+        {
             std::lock_guard<mutexT> lock(mtx_);
 
             before_writing(lvl, msg);
@@ -1749,28 +1670,19 @@ private:
     }
 
 protected:
-    // 在输出数据之前可能需要对数据进行转换处理
-    virtual void before_write(level lvl, string_t& msg)
-    {
-    }
+    virtual void before_write(level /*lvl*/, string_t& /*msg*/)
+    {}
 
-    // 消费日志消息：before_writing / writing / after_writing 互斥中
-    //     不要在这里做太多耗时性作业
-    //     尽量把工作转移到 before_write / after_write
-    virtual void before_writing(level lvl, string_t& msg)
-    {
-    }
+    virtual void before_writing(level /*lvl*/, string_t& /*msg*/)
+    {}
 
-    virtual void writing(level lvl, string_t& msg) = 0;
+    virtual void writing(level /*lvl*/, string_t& /*msg*/) = 0;
 
-    virtual void after_writing(level lvl, string_t& msg)
-    {
-    }
+    virtual void after_writing(level /*lvl*/, string_t& /*msg*/)
+    {}
 
-    // 在输出数据之后做一些遗后工作
-    virtual void after_write(level lvl, string_t& msg)
-    {
-    }
+    virtual void after_write(level /*lvl*/, string_t& /*msg*/)
+    {}
 
 private:
     mutexT mtx_;
@@ -1782,8 +1694,8 @@ private:
 //----------------|
 
 template <class charT, class layoutT = default_layout
-    , class mutexT = mutex_t
-    , class formatterT = formatter<charT, layoutT>>
+          , class mutexT = mutex_t
+          , class formatterT = formatter<charT, layoutT>>
 class basic_console_sink
     : public basic_sink<charT, layoutT, mutexT, formatterT>
 {
@@ -1797,6 +1709,32 @@ public:
         return true;
     }
 
+#if defined(TINYLOG_DISABLE_CONSOLE_COLOR)
+
+protected:
+    void writing(level lvl, string_t& msg) override final
+    {
+                write_line(lvl, msg);
+    }
+
+private:
+    template <class lineCharT, typename std::enable_if
+              <std::is_same<lineCharT, char>::value, int>::type = 0>
+    void write_line(level /*lvl*/, std::basic_string<lineCharT> const& line) const
+    {
+        std::printf("%s", line.c_str());
+    }
+
+    template <class lineCharT, typename std::enable_if
+              <std::is_same<lineCharT, wchar_t>::value, int>::type = 0>
+    void write_line(level /*lvl*/, std::basic_string<lineCharT> const& line) const
+    {
+        std::wprintf(L"%ls", line.c_str());
+    }
+
+#else // Enable colors.
+
+public:
     void enable_color(bool enable = true)
     {
         enable_color_ = enable;
@@ -1821,58 +1759,56 @@ protected:
 
 private:
     template <class lineCharT, typename std::enable_if
-        <std::is_same<lineCharT, char>::value, int>::type = 0>
+              <std::is_same<lineCharT, char>::value, int>::type = 0>
     lineCharT line_sep() const
     {
         return '\n';
     }
 
     template <class lineCharT, typename std::enable_if
-        <std::is_same<lineCharT, wchar_t>::value, int>::type = 0>
+              <std::is_same<lineCharT, wchar_t>::value, int>::type = 0>
     lineCharT line_sep() const
     {
         return L'\n';
     }
 
     template <class lineCharT, typename std::enable_if
-        <std::is_same<lineCharT, char>::value, int>::type = 0>
+              <std::is_same<lineCharT, char>::value, int>::type = 0>
     void write_line(level lvl, std::basic_string<lineCharT> const& line) const
     {
-        if (!enable_color_)
+        if (enable_color_)
         {
+            std::printf("%s", style_beg(lvl).c_str());
             std::printf("%s", line.c_str());
+            std::printf("%s", style_end().c_str());
             return ;
         }
-
-        std::printf("%s", style_beg(lvl).c_str());
         std::printf("%s", line.c_str());
-        std::printf("%s", style_end().c_str());
     }
 
     template <class lineCharT, typename std::enable_if
-        <std::is_same<lineCharT, wchar_t>::value, int>::type = 0>
+              <std::is_same<lineCharT, wchar_t>::value, int>::type = 0>
     void write_line(level lvl, std::basic_string<lineCharT> const& line) const
     {
-        if (!enable_color_)
+        if (enable_color_)
         {
+            std::wprintf(L"%ls", style_beg(lvl).c_str());
             std::wprintf(L"%ls", line.c_str());
+            std::wprintf(L"%ls", style_end().c_str());
             return ;
         }
-
-        std::wprintf(L"%ls", style_beg(lvl).c_str());
         std::wprintf(L"%ls", line.c_str());
-        std::wprintf(L"%ls", style_end().c_str());
     }
 
     template <class lineCharT, typename std::enable_if
-        <std::is_same<lineCharT, char>::value, int>::type = 0>
+              <std::is_same<lineCharT, char>::value, int>::type = 0>
     void write_line_sep() const
     {
         std::printf("%c", line_sep<lineCharT>());
     }
 
     template <class lineCharT, typename std::enable_if
-        <std::is_same<lineCharT, wchar_t>::value, int>::type = 0>
+              <std::is_same<lineCharT, wchar_t>::value, int>::type = 0>
     void write_line_sep() const
     {
         std::wprintf(L"%lc", line_sep<lineCharT>());
@@ -1922,11 +1858,10 @@ private:
     }
 
 private:
-#if defined(TINYLOG_DISABLE_CONSOLE_COLOR)
-    bool enable_color_ = false;
-#else
     bool enable_color_ = true;
-#endif
+
+#endif // TINYLOG_DISABLE_CONSOLE_COLOR
+
 };
 
 using console_sink  = basic_console_sink<char>;
@@ -1937,8 +1872,8 @@ using wconsole_sink = basic_console_sink<wchar_t>;
 //----------------|
 
 template <class charT, class layoutT = default_layout
-    , class mutexT = mutex_t
-    , class formatterT = formatter<charT, layoutT>>
+          , class mutexT = mutex_t
+          , class formatterT = formatter<charT, layoutT>>
 class basic_file_sink
     : public basic_sink<charT, layoutT, mutexT, formatterT>
 {
@@ -1956,9 +1891,9 @@ public:
     explicit basic_file_sink(char const* filename
                              , std::uintmax_t max_file_size
                              = default_max_file_size
-                               , std::ios_base::openmode mode
+                             , std::ios_base::openmode mode
                              = std::ios_base::app
-                               , std::locale const& loc = std::locale(""))
+                             , std::locale const& loc = std::locale(""))
         : filename_(filename), max_file_size_(max_file_size)
         , ostrm_(filename, mode)
     {
@@ -1971,7 +1906,7 @@ public:
     }
 
 protected:
-    void before_writing(level lvl, string_t& msg) override final
+    void before_writing(level /*lvl*/, string_t& msg) override final
     {
         std::uintmax_t const curr_file_size = ostrm_.tellp();
         if (curr_file_size + msg.size() < max_file_size_)
@@ -1986,13 +1921,13 @@ protected:
         }
         catch (...)
         {
-            /* 吞下苦果，避免应用异常退出。*/
+            // TODO: Ignore backup file failed.
         }
         ostrm_.clear();
         ostrm_.open(filename_, std::ios_base::out);
     }
 
-    void writing(level lvl, string_t& msg) override final
+    void writing(level /*lvl*/, string_t& msg) override final
     {
         if (!is_open())
         {
@@ -2017,8 +1952,8 @@ using wfile_sink= basic_file_sink<wchar_t>;
 //----------------|
 
 template <class charT, class layoutT = default_layout
-    , class mutexT = mutex_t
-    , class formatterT = formatter<charT, layoutT>>
+          , class mutexT = mutex_t
+          , class formatterT = formatter<charT, layoutT>>
 class basic_u8_file_sink
     : public basic_file_sink<charT, layoutT, mutexT, formatterT>
 {
@@ -2028,22 +1963,22 @@ public:
     using string_t  = typename base::string_t;
 
 public:
-    explicit basic_u8_file_sink
-    (char const* filename
-     , std::uintmax_t max_file_size
-     = base::default_max_file_size
-       , std::ios_base::openmode mode
-     = std::ios_base::app
-       , std::locale const& loc
-     = std::locale(std::locale(""), new std::codecvt_utf8<wchar_t>))
+    explicit basic_u8_file_sink(char const* filename
+                                , std::uintmax_t max_file_size
+                                = base::default_max_file_size
+                                , std::ios_base::openmode mode
+                                = std::ios_base::app
+                                , std::locale const& loc
+                                = std::locale(std::locale("")
+                                              , new std::codecvt_utf8<wchar_t>))
         : base(filename, max_file_size, mode, loc)
     {
     }
 
 protected:
-    void before_write(level lvl, string_t& msg) override final
+    void before_write(level /*lvl*/, string_t& msg) override final
     {
-        // convert only if string_t is narrow type.
+        // Convert only if string_t is narrow type.
         string_t const from = msg;
         string_traits<u8string>::convert(msg, from);
     }
@@ -2059,8 +1994,8 @@ using wu8_file_sink = basic_u8_file_sink<wchar_t>;
 #if defined(TINYLOG_WINDOWS_API)
 
 template <class charT, class layoutT = default_layout
-    , class mutexT = mutex_t
-    , class formatterT = formatter<charT, layoutT>>
+          , class mutexT = mutex_t
+          , class formatterT = formatter<charT, layoutT>>
 class basic_msvc_sink
     : public basic_sink<charT, layoutT, mutexT, formatterT>
 {
@@ -2083,14 +2018,14 @@ protected:
 
 private:
     template <class lineCharT, typename std::enable_if
-        <std::is_same<lineCharT, char>::value, int>::type = 0>
+              <std::is_same<lineCharT, char>::value, int>::type = 0>
     void writing_impl(std::basic_string<lineCharT> const& line) const
     {
         ::OutputDebugStringA(line.c_str());
     }
 
     template <class lineCharT, typename std::enable_if
-        <std::is_same<lineCharT, wchar_t>::value, int>::type = 0>
+              <std::is_same<lineCharT, wchar_t>::value, int>::type = 0>
     void writing_impl(std::basic_string<lineCharT> const& line) const
     {
         ::OutputDebugStringW(line.c_str());
@@ -2106,7 +2041,7 @@ using wmsvc_sink= basic_msvc_sink<wchar_t>;
 
 //////////////////////////////////////////////////////////////////////////////
 //
-// 槽适配器
+// Sink Adapter: Adapt narrow and unicode charactor.
 //
 //////////////////////////////////////////////////////////////////////////////
 namespace detail
@@ -2136,13 +2071,15 @@ struct sink_adapter_base
 template <class charT>
 struct basic_sink_adapter : public sink_adapter_base
 {
-    using char_type     = typename std::conditional<std::is_same
-        <charT, char>::value, char, wchar_t>::type;
-    using extern_type   = typename std::conditional<!std::is_same
-        <charT, char>::value, char, wchar_t>::type;
+    using char_type   = typename std::conditional<std::is_same
+                                                  <charT, char>::value
+                                                  , char, wchar_t>::type;
+    using extern_type = typename std::conditional<!std::is_same
+                                                  <charT, char>::value
+                                                  , char , wchar_t>::type;
 
-    using string_t  = std::basic_string<char_type>;
-    using sink_t    = std::shared_ptr<sink::basic_sink_base<char_type>>;
+    using string_t    = std::basic_string<char_type>;
+    using sink_t      = std::shared_ptr<sink::basic_sink_base<char_type>>;
 
 public:
     explicit basic_sink_adapter(sink_t sk) : sink_(sk)
@@ -2199,7 +2136,7 @@ private:
 
 //////////////////////////////////////////////////////////////////////////////
 //
-// 日志记录器
+// Logger.
 //
 //////////////////////////////////////////////////////////////////////////////
 
@@ -2207,44 +2144,43 @@ class logger
 {
 public:
 #if defined(TINYLOG_WINDOWS_API)
-    using char_type     = wchar_t;
-    using extern_type   = char;
+    using char_type      = wchar_t;
+    using extern_type    = char;
 #else
-    using char_type     = char;
-    using extern_type   = wchar_t;
+    using char_type      = char;
+    using extern_type    = wchar_t;
 #endif
-    using string_t      = std::basic_string<char_type>;
-    using xstring_t     = std::basic_string<extern_type>;
+    using string_t       = std::basic_string<char_type>;
+    using xstring_t      = std::basic_string<extern_type>;
     using sink_adapter_t = std::shared_ptr<detail::sink_adapter_base>;
 
 public:
     explicit logger(string_t const& n) : name_(n)
     {
     }
+
     explicit logger(xstring_t const& n)
     {
         string_traits<>::convert(name_, n);
     }
-    explicit logger() :
+
 #if defined(TINYLOG_WINDOWS_API)
-        name_(TINYLOG_DEFAULTW)
-#else
-        name_(TINYLOG_DEFAULT)
-#endif
+    explicit logger() : name_(TINYLOG_DEFAULTW)
     {
     }
+#else
+    explicit logger() : name_(TINYLOG_DEFAULT)
+    {
+    }
+#endif // TINYLOG_WINDOWS_API
 
     string_t name() const
     {
         return name_;
     }
 
-    /** \brief 过滤日志级别
-     *
-     * 低于 lvl 级别的日志不输出
-     * 优先级:
-     *     trace < debug < info < warn < error < fatal
-     */
+    // Priority:
+    //   trace < debug < info < warn < error < fatal
     void set_level(level lvl)
     {
         lvl_ = lvl;
@@ -2255,18 +2191,14 @@ public:
         return lvl_;
     }
 
-    /** \brief 安装输出槽
-     *
-     * 使用形式参见 std::make_shared(...)
-     *
-     * 示例:
-     * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.cpp
-     * auto file_sink = logger::create_sink<sink::wfile_sink>(L"d:\\error.log");
-     * if (!*file_sink) {
-     *     // open file failed.
-     * }
-     * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-     */
+    // Setup log sink.
+    //
+    // Usage @see std::make_shared(...)
+    // e.g.
+    //   auto file_sink = logger::create_sink<sink::wfile_sink>(L"d:\\error.log");
+    //   if (!*file_sink) {
+    //       // open file failed.
+    //   }
     template <class sinkT, class... Args>
     std::shared_ptr<sinkT> create_sink(Args&&... args)
     {
@@ -2274,8 +2206,7 @@ public:
         return add_sink(sk);
     }
 
-    template <class sinkT
-            , class charT = typename sinkT::char_type>
+    template <class sinkT, class charT = typename sinkT::char_type>
     std::shared_ptr<sinkT> add_sink(std::shared_ptr<sinkT> sk)
     {
         using char_type = charT;
@@ -2297,7 +2228,7 @@ public:
         {
             if (!*sk_adapter)
             {
-                // TODO: failed
+                // TODO: Log sink is invalid.
                 continue;
             }
             sk_adapter->consume(r);
@@ -2305,11 +2236,7 @@ public:
     }
 
 public:
-    /** \brief 产生一个标题文本
-     *
-     * 一般在对日志设置完毕后，做为第一条日志记录，
-     * 让日志文件看起来有明显的边界。
-     */
+    // Generate log title message string.
     static std::string title(std::string const& text = "TinyLog")
     {
         return detail::gen_title<std::string::value_type>(text
@@ -2327,13 +2254,24 @@ private:
     std::vector<sink_adapter_t> sink_adapters_;
 };
 
+//////////////////////////////////////////////////////////////////////////////
 //
-// 注册管理
-//     管理日志记录器
+// Registry: Set up a central registry of logger.
 //
-class TINYLOG_API registry
+//////////////////////////////////////////////////////////////////////////////
+namespace detail
+{
+
+#if defined(TINYLOG_REGISTRY_THREAD_SAFE)
+    template <class mutexT = std::mutex>
+#else
+    template <class mutexT = ::tinylog::detail::null_mutex>
+#endif // TINYLOG_REGISTRY_THREAD_SAFE
+class registry_impl
 {
 public:
+    using mutex_type    = mutexT;
+
 #if defined(TINYLOG_WINDOWS_API)
     using char_type     = wchar_t;
     using extern_type   = char;
@@ -2347,34 +2285,271 @@ public:
     using logger_ptr    = std::shared_ptr<logger_t>;
 
 public:
-    // 日志级别:
-    //     为创建日志记录器时设置默认过滤级别
-    static void set_level(level lvl);
+    static registry_impl& instance()
+    {
+        static bool f = false;
+        if(!f)
+        {
+            // This code *must* be called before main() starts, and
+            // when only one thread is executing.
+            f = true;
+            s_inst_ = std::make_shared<registry_impl>();
+        }
 
-    // 添加日志记录器
-    //      失败将抛出异常
-    static logger_ptr create_logger(string_t const& logger_name);
-    static logger_ptr create_logger(xstring_t const& logger_name);
-    static logger_ptr create_logger();
+        // The following line does nothing else than force the
+        // instantiation of singleton<T>::create_object, whose
+        // constructor is called before main() begins.
+        s_create_object_.do_nothing();
 
-    static logger_ptr add_logger(logger_ptr inst);
+#if !defined(TINYLOG_USE_HEADER_ONLY)
+        s_inst_->ensure_impl_in_shared_lib();
+#endif // !TINYLOG_USE_HEADER_ONLY
 
-    // 获取日志记录器
-    //      失败返回空指针
-    static logger_ptr get_logger(string_t const& logger_name);
-    static logger_ptr get_logger(xstring_t const& logger_name);
-    static logger_ptr get_logger();
+        return *s_inst_;
+    }
 
-    static void erase_logger(string_t const& logger_name);
-    static void erase_logger(xstring_t const& logger_name);
-    static void erase_logger();
+public:
+    void set_level(level lvl)
+    {
+        std::lock_guard<mutex_type> lock(mtx_);
+        lvl_ = lvl;
+    }
 
-    static void erase_all_logger();
+    logger_ptr create_logger(string_t const& logger_name)
+    {
+        std::lock_guard<mutex_type> lock(mtx_);
+        throw_if_exists(logger_name);
+        auto p = std::make_shared<logger_t>(logger_name);
+        loggers_[logger_name] = p;
+        return p;
+    }
+
+    logger_ptr create_logger(xstring_t const& logger_name)
+    {
+        string_t name;
+        string_traits<>::convert(name, logger_name);
+        return create_logger(name);
+    }
+
+    logger_ptr create_logger()
+    {
+#if defined(TINYLOG_WINDOWS_API)
+        return create_logger(TINYLOG_DEFAULTW);
+#else
+        return create_logger(TINYLOG_DEFAULT);
+#endif
+    }
+
+    logger_ptr add_logger(logger_ptr inst)
+    {
+        assert(inst && "logger instance point must exists");
+        auto const name = cvt(inst->name());
+        std::lock_guard<mutex_type> lock(mtx_);
+        throw_if_exists(name);
+        loggers_[name] = inst;
+        return inst;
+    }
+
+public:
+    logger_ptr get_logger(string_t const& logger_name
+                          , level filter_lvl = level::trace)
+    {
+        std::lock_guard<mutex_type> lock(mtx_);
+        auto found = loggers_.find(logger_name);
+        if (found != loggers_.cend() && lvl_ <= filter_lvl)
+        {
+            return found->second;
+        }
+        return nullptr;
+    }
+
+    logger_ptr get_logger(xstring_t const& logger_name
+                          , level filter_lvl = level::trace)
+    {
+        string_t name;
+        string_traits<>::convert(name, logger_name);
+        return get_logger(name, filter_lvl);
+    }
+
+    logger_ptr get_logger(level filter_lvl = level::trace)
+    {
+#if defined(TINYLOG_WINDOWS_API)
+        return get_logger(TINYLOG_DEFAULTW, filter_lvl);
+#else
+        return get_logger(TINYLOG_DEFAULT, filter_lvl);
+#endif
+    }
+
+public:
+    void erase_logger(string_t const& logger_name)
+    {
+        std::lock_guard<mutex_type> lock(mtx_);
+        loggers_.erase(logger_name);
+    }
+
+    void erase_logger(xstring_t const& logger_name)
+    {
+        string_t name;
+        string_traits<>::convert(name, logger_name);
+        return erase_logger(name);
+    }
+
+    void erase_logger()
+    {
+#if defined(TINYLOG_WINDOWS_API)
+        return erase_logger(TINYLOG_DEFAULTW);
+#else
+        return erase_logger(TINYLOG_DEFAULT);
+#endif
+    }
+
+    void erase_all_logger()
+    {
+        std::lock_guard<mutex_type> lock(mtx_);
+        loggers_.clear();
+    }
+
+    registry_impl() = default;
+    registry_impl(registry_impl const&) = delete;
+    registry_impl& operator=(registry_impl const&) = delete;
+
+private:
+    static string_t cvt(string_t const& xs)
+    {
+        return xs;
+    }
+    static string_t cvt(xstring_t const& xs)
+    {
+        string_t s;
+        string_traits<>::convert(s, xs);
+        return s;
+    }
+
+    void throw_if_exists(string_t const& logger_name) const
+    {
+        if (loggers_.find(logger_name) != loggers_.cend())
+        {
+            std::string name;
+            string_traits<>::convert(name, logger_name);
+            name = "logger with name \'" + name + "\' already exists.";
+            throw std::system_error(std::make_error_code(std::errc::file_exists)
+                                    , name);
+        }
+    }
+
+private:
+    void ensure_impl_in_shared_lib() const;
+
+private:
+    struct object_creator
+    {
+        object_creator()
+        {
+            // This constructor does nothing more than ensure that instance()
+            // is called before main() begins, thus creating the static
+            // T object before multithreading race issues can come up.
+            registry_impl::instance();
+        }
+        inline void do_nothing() const
+        {
+        }
+    };
+
+private:
+    static std::shared_ptr<registry_impl> s_inst_;
+    static object_creator s_create_object_;
+
+private:
+    mutable mutex_type mtx_;
+    level lvl_ = level::trace;
+    std::unordered_map<string_t, logger_ptr> loggers_;
+};
+
+template <class mutexT>
+std::shared_ptr<registry_impl<mutexT>> registry_impl<mutexT>::s_inst_;
+
+template <class mutexT>
+typename registry_impl<mutexT>::object_creator registry_impl<mutexT>::s_create_object_;
+
+} // namespace detail
+
+class TINYLOG_API registry
+{
+public:
+    using impl        = detail::registry_impl<>;
+    using string_t    = impl::string_t;
+    using xstring_t   = impl::xstring_t;
+    using logger_ptr  = impl::logger_ptr;
+
+public:
+    static void set_level(level lvl)
+    {
+        return impl::instance().set_level(lvl);
+    }
+
+    static logger_ptr create_logger(string_t const& logger_name)
+    {
+        return impl::instance().create_logger(logger_name);
+    }
+
+    static logger_ptr create_logger(xstring_t const& logger_name)
+    {
+        return impl::instance().create_logger(logger_name);
+    }
+
+    static logger_ptr create_logger()
+    {
+        return impl::instance().create_logger();
+    }
+
+    static logger_ptr add_logger(logger_ptr inst)
+    {
+        return impl::instance().add_logger(inst);
+    }
+
+public:
+    static logger_ptr get_logger(string_t const& logger_name
+                                 , level filter_lvl = level::trace)
+    {
+        return impl::instance().get_logger(logger_name, filter_lvl);
+    }
+
+    static logger_ptr get_logger(xstring_t const& logger_name
+                                 , level filter_lvl = level::trace)
+    {
+        return impl::instance().get_logger(logger_name, filter_lvl);
+    }
+
+    static logger_ptr get_logger(level filter_lvl = level::trace)
+    {
+        return impl::instance().get_logger(filter_lvl);
+    }
+
+public:
+    void erase_logger(string_t const& logger_name)
+    {
+        return impl::instance().erase_logger(logger_name);
+    }
+
+    void erase_logger(xstring_t const& logger_name)
+    {
+        return impl::instance().erase_logger(logger_name);
+    }
+
+    void erase_logger()
+    {
+        return impl::instance().erase_logger();
+    }
+
+    void erase_all_logger()
+    {
+        return impl::instance().erase_all_logger();
+    }
 };
 
 //////////////////////////////////////////////////////////////////////////////
 //
-//  捕获日志记录
+//  Capture Logging.
 //
 //////////////////////////////////////////////////////////////////////////////
 namespace detail
@@ -2395,8 +2570,9 @@ public:
     {
     }
 
-    explicit basic_dlprintf_base(string_t const& logger_name)
-        : logger_(registry::get_logger(logger_name))
+    explicit basic_dlprintf_base(string_t const& logger_name
+                                 , level filter_lvl)
+        : logger_(registry::get_logger(logger_name, filter_lvl))
     {
     }
 
@@ -2452,7 +2628,7 @@ public:
     }
 
     explicit basic_dlprintf(string_t const& logger_name, level lvl)
-        : base(logger_name), record_(lvl)
+        : base(logger_name, lvl), record_(lvl)
     {
     }
 
@@ -2466,7 +2642,8 @@ public:
     bool operator()(string_t const& fmt, Args&&... args)
     {
         sprintf_constructor<char_type>::construct(record_.message
-                , fmt.c_str(), std::forward<Args>(args)...);
+                                                  , fmt.c_str()
+                                                  , std::forward<Args>(args)...);
         return true;
     }
 
@@ -2506,18 +2683,18 @@ public:
 
 public:
     explicit basic_dlprintf_d(logger_ptr inst, level lvl
-                             , string_t const& file
-                             , std::size_t line
-                             , string_t const& func)
+                              , string_t const& file
+                              , std::size_t line
+                              , string_t const& func)
         : base(inst), record_(lvl, file, line, func)
     {
     }
 
     explicit basic_dlprintf_d(string_t const& logger_name, level lvl
-                             , string_t const& file
-                             , std::size_t line
-                             , string_t const& func)
-        : base(logger_name), record_(lvl, file, line, func)
+                              , string_t const& file
+                              , std::size_t line
+                              , string_t const& func)
+        : base(logger_name, lvl), record_(lvl, file, line, func)
     {
     }
 
@@ -2531,7 +2708,8 @@ public:
     bool operator()(string_t const& fmt, Args&&... args)
     {
         sprintf_constructor<char_type>::construct(record_.message
-                , fmt.c_str(), std::forward<Args>(args)...);
+                                                  , fmt.c_str()
+                                                  , std::forward<Args>(args)...);
         return true;
     }
 
@@ -2557,7 +2735,6 @@ private:
 using dlprintf_d_impl  = basic_dlprintf_d<char>;
 using dlwprintf_d_impl = basic_dlprintf_d<wchar_t>;
 
-// 流化支持: 日志输出流
 template<class charT>
 class basic_odlstream_base
     : public std::basic_ostream<charT>
@@ -2576,9 +2753,10 @@ public:
     {
     }
 
-    explicit basic_odlstream_base(string_t const& logger_name)
+    explicit basic_odlstream_base(string_t const& logger_name
+                                  , level filter_lvl = level::trace)
         : base(&stringbuf_)
-        , logger_(registry::get_logger(logger_name))
+        , logger_(registry::get_logger(logger_name, filter_lvl))
     {
     }
 
@@ -2642,7 +2820,7 @@ public:
 
     explicit basic_odlstream(string_t const& logger_name
                             , level lvl)
-        : base(logger_name), record_(lvl)
+        : base(logger_name, lvl), record_(lvl)
     {
     }
 
@@ -2669,7 +2847,6 @@ private:
 using odlstream  = basic_odlstream<char>;
 using wodlstream = basic_odlstream<wchar_t>;
 
-// 流化支持: 支持调试信息
 template<class charT>
 class basic_odlstream_d
     : public basic_odlstream_base<charT>
@@ -2685,20 +2862,20 @@ public:
 
 public:
     explicit basic_odlstream_d(logger_ptr inst, level lvl
-                              , string_t const& file
-                              , std::size_t line
-                              , string_t const& func)
+                               , string_t const& file
+                               , std::size_t line
+                               , string_t const& func)
         : base(inst)
         , record_(lvl, file, line, func)
     {
     }
 
     explicit basic_odlstream_d(string_t const& logger_name
-                              , level lvl
-                              , string_t const& file
-                              , std::size_t line
-                              , string_t const& func)
-        : base(logger_name)
+                               , level lvl
+                               , string_t const& file
+                               , std::size_t line
+                               , string_t const& func)
+        : base(logger_name, lvl)
         , record_(lvl, file, line, func)
     {
     }
@@ -2727,383 +2904,6 @@ using odlstream_d    = basic_odlstream_d<char>;
 using wodlstream_d   = basic_odlstream_d<wchar_t>;
 
 }  // namespace detail
-
-//////////////////////////////////////////////////////////////////////////////
-//
-// STL容器流化支持
-//
-// 输出格式:
-//     pair  --> key: value
-//     tuple --> (item_0, item_1, item_2)
-//     list  --> [item_0, item_1, item_2 ]
-//     map   --> { key_0: value_0, key_1: value_1 }
-//
-//////////////////////////////////////////////////////////////////////////////
-namespace detail
-{
-
-template <class charT>
-struct delimiters;
-
-template <>
-struct delimiters<char>
-{
-    static constexpr auto ellipsis      = "...";
-    static constexpr auto space         = ' ';
-    static constexpr auto comma         = ',';
-    static constexpr auto colon         = ':';
-    static constexpr auto lparenthese   = '(';
-    static constexpr auto rparenthese   = ')';
-    static constexpr auto lbracket      = '[';
-    static constexpr auto rbracket      = ']';
-    static constexpr auto lbrace        = '{';
-    static constexpr auto rbrace        = '}';
-};
-
-template <>
-struct delimiters<wchar_t>
-{
-    static constexpr auto ellipsis      = L"...";
-    static constexpr auto space         = L' ';
-    static constexpr auto comma         = L',';
-    static constexpr auto colon         = L':';
-    static constexpr auto lparenthese   = L'(';
-    static constexpr auto rparenthese   = L')';
-    static constexpr auto lbracket      = L'[';
-    static constexpr auto rbracket      = L']';
-    static constexpr auto lbrace        = L'{';
-    static constexpr auto rbrace        = L'}';
-};
-
-// std::tuple
-template<class Tuple, size_t... Indices
-         , class charT, class delimiterT = delimiters<charT>>
-inline void print_tuple(Tuple&& t
-                        , indices_holder<Indices...>
-                        , std::basic_ostream<charT>& out)
-{
-    using swallow = int[];
-    auto delimiters = [](size_t idx) -> std::basic_string<charT>
-    {
-        if (idx == 0)
-        {
-            return std::basic_string<charT>();
-        }
-        return { delimiterT::comma, delimiterT::space };
-    };
-
-    out << delimiterT::lparenthese;
-    (void)swallow{0, (out << delimiters(Indices) << std::get<Indices>(t), 0)...};
-    out << delimiterT::rparenthese;
-}
-
-struct sfinae
-{
-    using true_t = char;
-    using false_t = char[2];
-};
-
-// 容器是否有 const_iterator 类型
-template <class T>
-struct has_const_iterator : private sfinae
-{
-private:
-    template <class Container>
-    static true_t& has(typename Container::const_iterator*);
-
-    template <class Container>
-    static false_t& has(...);
-
-public:
-    static constexpr bool value = sizeof(has<T>(nullptr)) == sizeof(true_t);
-};
-
-// 容器是类 map 类型
-template <class T>
-struct has_kv : private sfinae
-{
-private:
-    template <class Container>
-    static true_t& has_key(typename Container::key_type*);
-
-    template <class Container>
-    static false_t& has_key(...);
-
-    template <class Container>
-    static true_t& has_value(typename Container::value_type*);
-
-    template <class Container>
-    static false_t& has_value(...);
-
-public:
-    static constexpr bool value
-        = (sizeof(has_key<T>(nullptr)) == sizeof(true_t))
-          && (sizeof(has_value<T>(nullptr)) == sizeof(true_t));
-};
-
-// 容器是否有 begin() 成员
-template <typename T>
-struct has_begin_iterator: private sfinae
-{
-private:
-    template <typename Container>
-    using begin_t = typename Container::const_iterator(Container::*)() const;
-
-    template <typename Container>
-    static true_t& has(typename std::enable_if<std::is_same
-                       <decltype(static_cast<begin_t<Container>>
-                                 (&Container::begin))
-                       , begin_t<Container>>::value>::type*);
-
-    template <typename Container>
-    static false_t& has(...);
-
-public:
-    static constexpr bool value = sizeof(has<T>(nullptr)) == sizeof(true_t);
-};
-
-// 容器是否有 end() 成员
-template <typename T>
-struct has_end_iterator: private sfinae
-{
-private:
-    template <typename Container>
-    using end_t = typename Container::const_iterator(Container::*)() const;
-
-    template <typename Container>
-    static true_t& has(typename std::enable_if<std::is_same
-                       <decltype(static_cast<end_t<Container>>
-                                 (&Container::end))
-                       , end_t<Container>>::value>::type*);
-
-    template <typename Container>
-    static false_t& has(...);
-
-public:
-    static constexpr bool value = sizeof(has<T>(nullptr)) == sizeof(true_t);
-};
-
-// 支持非成员 std::begin / std::end 进行迭代的STL容器
-template <class T>
-struct support_free_begin_stl
-    : public std::integral_constant<bool
-    , has_const_iterator<T>::value
-      && has_begin_iterator<T>::value
-      && has_end_iterator<T>::value>
-{
-};
-
-template <typename T>
-struct support_free_begin_stl<std::valarray<T>>
-            : public std::true_type
-{
-};
-
-// stl containers
-template <bool is_map, class Iterator
-          , class charT, class delimiterT = delimiters<charT>>
-inline void print_sequence(Iterator b, Iterator e
-                           , std::basic_ostream<charT>& out)
-{
-    // 只打印前 100 个元素
-    constexpr size_t max_print_count = 100u;
-
-    out << (is_map ? delimiterT::lbrace : delimiterT::lbracket);
-    for (size_t i = 0; b != e && i < max_print_count; ++i, ++b)
-    {
-        if (i > 0)
-        {
-            out << delimiterT::comma << delimiterT::space;
-        }
-        out << *b;
-    }
-    if (b != e)
-    {
-        out << delimiterT::space << delimiterT::ellipsis;
-    }
-    out << (is_map ? delimiterT::rbrace : delimiterT::rbracket);
-}
-
-}  // namespace detail
-}  // namespace tinylog
-
-#if !defined(TINYLOG_DISABLE_STL_LOGING)
-
-// @warn 加入 std 命名空间，有更好的方式?
-namespace std
-{
-
-// std::pair
-template<class charT, class Key, class Value
-         , class delimiterT = ::tinylog::detail::delimiters<charT>>
-inline std::basic_ostream<charT>&
-operator<<(std::basic_ostream<charT>& out
-           , std::pair<Key, Value> const& p)
-{
-    using namespace ::tinylog::detail;
-
-    out << p.first
-        << delimiterT::colon << delimiterT::space
-        << p.second;
-    return out;
-}
-
-// std::tuple
-template<class charT, class... Args>
-inline std::basic_ostream<charT>&
-operator<<(std::basic_ostream<charT>& out
-           , std::tuple<Args...> const& t)
-{
-    using namespace ::tinylog::detail;
-
-    typename indices_generator<sizeof...(Args)>::type indices;
-    print_tuple(t, indices, out);
-    return out;
-}
-
-// stl::container
-template <class charT, class Container>
-inline typename std::enable_if
-    <::tinylog::detail::support_free_begin_stl<Container>::value
-    && !std::is_same<Container
-        , std::basic_string<typename Container::value_type>>::value
-    , std::basic_ostream<charT>&>::type
-operator<<(std::basic_ostream<charT>& out, Container const& seq)
-{
-    using namespace ::tinylog::detail;
-
-    print_sequence<has_kv<Container>::value>(std::begin(seq)
-            , std::end(seq), out);
-    return out;
-}
-
-}  // namesapce std
-
-#endif  // TINYLOG_DISABLE_STL_LOGING
-
-//////////////////////////////////////////////////////////////////////////////
-//
-// 十六进制倾印
-//     输出格式 @see winhex
-//
-//////////////////////////////////////////////////////////////////////////////
-namespace tinylog
-{
-
-template <bool hex_offset = false>
-std::string hexdump(std::string const& data)
-{
-    using namespace std;
-
-    constexpr auto off_len = 8;
-    constexpr auto hex_size = 3;
-    constexpr auto ascii_cnt  = 16;
-    constexpr auto wide_len = off_len + hex_size * ascii_cnt + ascii_cnt + 2;
-
-    constexpr auto space_char = ' ';
-    constexpr auto sep_col = '|';
-    constexpr auto sep_row = '-';
-
-    string const off(hex_offset ? "HEX OFF" : "DEC OFF");
-    string const ascii("ANSI ASCII");
-
-    ostringstream oss;
-
-    // title
-    oss << setw((off_len - off.size()) / 2 + off.size()) << off
-        << setw((off_len - off.size()) / 2) << space_char;
-    oss << sep_col;
-    for (auto i = 0; i != ascii_cnt; ++i)
-    {
-        oss << setw((hex_size - 1) / 2 + 1) << hex << uppercase << i
-            << setw((hex_size - 1) / 2) << space_char;
-    }
-    oss << sep_col;
-    oss << setw((ascii_cnt - ascii.size()) / 2 + ascii.size()) << ascii
-        << setw((ascii_cnt - ascii.size()) / 2) << space_char << endl;
-    oss << string(wide_len, sep_row) << endl;
-
-    // content
-    auto const row_size = data.size() / ascii_cnt
-                          + ((data.size() % ascii_cnt) ? 1 : 0);
-    for (auto r = 0u; r != row_size; ++r)
-    {
-        auto const row_idx = r * ascii_cnt;
-        oss << string((off_len - 9 > 0 ? off_len - 9 : 0), space_char)
-            << setw(7) << setfill('0')
-            << (hex_offset ? hex : dec) << uppercase << r * ascii_cnt
-            << space_char;
-
-        oss << sep_col;
-        for (auto c = 0; c != ascii_cnt; ++c)
-        {
-            auto const idx = row_idx + c;
-            auto const ch = data.size() > idx ? data[idx] : '\0';
-            oss << setw(hex_size - 1) << hex << uppercase
-                << (static_cast<unsigned>(ch) & 0xFF) << space_char;
-        }
-        oss << sep_col;
-
-        for (auto c = 0; c != ascii_cnt; ++c)
-        {
-            auto const idx = row_idx + c;
-            auto const ch = data.size() > idx ? data[idx] : space_char;
-            oss << (isprint(ch) ? ch : space_char);
-        }
-        oss << endl;
-    }
-    return oss.str();
-}
-
-template <bool hex_offset = false>
-inline std::string hexdump(char const* s, size_t n)
-{
-    return hexdump<hex_offset>(std::string(s, s + n));
-}
-
-template <bool hex_offset = false>
-inline std::string hexdump(std::wstring const& s)
-{
-    char const* const p = (char const*)s.c_str();
-    size_t const n = s.size() * sizeof(std::wstring::value_type);
-    return hexdump<hex_offset>(p, n);
-}
-
-template <bool hex_offset = false>
-inline std::string hexdump(wchar_t const* s, size_t n)
-{
-    return hexdump<hex_offset>(std::wstring(s, s + n));
-}
-
-template <bool hex_offset = false>
-inline std::wstring whexdump(std::string const& s)
-{
-    auto buf = hexdump<hex_offset>(s);
-    std::wstring ws;
-    string_traits<u8string>::convert(ws, buf);
-    return ws;
-}
-
-template <bool hex_offset = false>
-inline std::wstring whexdump(char const* s, size_t n)
-{
-    return whexdump<hex_offset>(std::string(s, s + n));
-}
-
-template <bool hex_offset = false>
-inline std::wstring whexdump(std::wstring const& s)
-{
-    char const* const p = (char const*)s.c_str();
-    size_t const n = s.size() * sizeof(std::wstring::value_type);
-    return whexdump<hex_offset>(p, n);
-}
-
-template <bool hex_offset = false>
-inline std::wstring whexdump(wchar_t const* s, size_t n)
-{
-    return whexdump<hex_offset>(std::wstring(s, s + n));
-}
-
 }  // namespace tinylog
 
 #endif  // TINYTINYLOG_HPP
