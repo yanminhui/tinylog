@@ -1,6 +1,5 @@
 #include "tinylog/tinylog.hpp"
 
-
 namespace tinylog
 {
 namespace detail

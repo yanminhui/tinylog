@@ -1,31 +1,27 @@
-﻿/*
+﻿/* Support for print STL container and string in hex.
+ *
+ * ```.cpp
+ *
+ * using namespace tinylog;
+ *
+ * int main()
+ * {
+ *     // Print STL container.
+ *     std::vector<int> v = { 1, 2, 3, 4, 5 };
+ *     std::cout << v << std::endl;
+ *
+ *     // Print string in hex.
+ *     std::cout << hexdump("Bravo! The job has been done well.") << std::endl;
+ * }
+ *
+ * ```
+ */
 
-Support for print STL container and string in hex.
-
-```.cpp
-
-using namespace tinylog;
-
-int main()
-{
-    // Print STL container.
-    std::vector<int> v = { 1, 2, 3, 4, 5 };
-    std::cout << v << std::endl;
-
-    // Print string in hex.
-    std::cout << hexdump("Bravo! The job has been done well.") << std::endl;
-}
-
-```
-*/
-
-//////////////////////////////////////////////////////////////////////////////
-//
-// User Customize:
-//
-//   *** Tinylog basic setting see 'tinylog.hpp' ***
-//
-//////////////////////////////////////////////////////////////////////////////
+/*****************************************************************************/
+/* User Customize:
+ *
+ *   *** Tinylog basic setting see 'tinylog.hpp' ***
+ */
 
 // Tinylog can print stl container to be similar to what python's print
 // function did. If you choose disable the feature, just remove the
@@ -55,7 +51,6 @@ int main()
 #include <valarray>
 #include <vector>
 
-
 namespace tinylog
 {
 namespace detail
@@ -72,7 +67,7 @@ template <size_t Index, size_t... Indices>
 struct indices_generator
 {
     using type = typename indices_generator<Index - 1
-                        , Index - 1, Indices...>::type;
+                                            , Index - 1, Indices...>::type;
 };
 
 template <size_t... Indices>
@@ -81,11 +76,8 @@ struct indices_generator<0, Indices...>
     using type = indices_holder<Indices...>;
 };
 
-//////////////////////////////////////////////////////////////////////////////
-//
-// Output STL Coontainer Support.
-//
-//////////////////////////////////////////////////////////////////////////////
+/*****************************************************************************/
+/* Output STL Coontainer Support. */
 
 template <class charT>
 struct delimiters;
@@ -138,7 +130,8 @@ inline void print_tuple(Tuple&& t
     };
 
     out << delimiterT::lparenthese;
-    (void)swallow{0, (out << delimiters(Indices) << std::get<Indices>(t), 0)...};
+    (void)swallow{0
+        , (out << delimiters(Indices) << std::get<Indices>(t), 0)...};
     out << delimiterT::rparenthese;
 }
 
@@ -182,7 +175,7 @@ private:
 public:
     static constexpr bool value
     = (sizeof(has_key<T>(nullptr)) == sizeof(true_t))
-        && (sizeof(has_value<T>(nullptr)) == sizeof(true_t));
+    && (sizeof(has_value<T>(nullptr)) == sizeof(true_t));
 };
 
 // begin()
@@ -308,7 +301,7 @@ inline typename std::enable_if
 && !std::is_same<Container
                  , std::basic_string<typename Container::value_type>>::value
   , std::basic_ostream<charT>&>::type
-operator<<(std::basic_ostream<charT>& out, Container const& seq)
+          operator<<(std::basic_ostream<charT>& out, Container const& seq)
 {
     using namespace ::tinylog::detail;
 
@@ -321,11 +314,9 @@ operator<<(std::basic_ostream<charT>& out, Container const& seq)
 
 #endif  // TINYLOG_DISABLE_STL_LOGGING
 
-//////////////////////////////////////////////////////////////////////////////
-//
-// Dump String in Hex: @see winhex.
-//
-//////////////////////////////////////////////////////////////////////////////
+/*****************************************************************************/
+/* Dump String in Hex: @see winhex. */
+
 namespace tinylog
 {
 
@@ -364,7 +355,7 @@ std::string hexdump(std::string const& data)
 
     // content
     auto const row_size = data.size() / ascii_cnt
-                          + ((data.size() % ascii_cnt) ? 1 : 0);
+    + ((data.size() % ascii_cnt) ? 1 : 0);
     for (auto r = 0u; r != row_size; ++r)
     {
         auto const row_idx = r * ascii_cnt;

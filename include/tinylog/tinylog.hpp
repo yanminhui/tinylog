@@ -1,86 +1,87 @@
 ﻿/*
- ____ _             _
-|_   _(_)_ __  _   _| |    ___   __ _
-  | | | | '_ \| | | | |   / _ \ / _` | TinyLog for Modern C++
-  | | | | | | | |_| | |__| (_) | (_| | version 1.4.0
-  |_| |_|_| |_|\__, |_____\___/ \__, | https://github.com/yanminhui/tinylog
-               |___/            |___/
-
-Licensed under the MIT License <http://opensource.org/licenses/MIT>.
-Copyright (c) 2018-2019 yanminhui <mailto:yanminhui163@163.com>.
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-```.cpp
-
-using namespace tinylog;
-
-void main()
-{
-   auto inst = registry::create_logger();
-
-   // setup sink:
-   //   - [w]console_sink
-   //   - [w]file_sink
-   //   - [w]u8_file_sink
-   //   - [w]msvc_sink
-   //
-   // @see std::make_shared
-   auto sk = inst->create_sink<sink::file_sink>("d:\\default.log");
-   sk->enable_verbose(true);
-
-   // filter level.
-   inst->set_level(info);
-
-   // usage:
-   //   - char
-   //            |-- lout_<suffix>、lprintf_<suffix>
-   //            |-- lout(<level>)、lprintf(<level>)
-   //   - wchar_t
-   //            |-- wlout_<suffix>、lwprintf_<suffix>
-   //            |-- wlout(<level>)、lwprintf(<level>)
-   //
-   // suffix: t --> trace
-   //         d --> debug
-   //         i --> info
-   //         w --> warn
-   //         e --> error
-   //         f --> fatal
-   //
-   // @see std::cout \ std::wcout \ printf \ wprintf
-
-   // 1
-   lout_i << "module: pass" << std::endl;
-
-   // 2
-   lout(info) << "module: pass" << std::endl;
-   lout_if(info, true) << "module: pass" << std::endl;
-
-   // 3
-   lprintf_i("module: %s\n", "pass");
-
-   // 4
-   lprintf(info, "module: %s\n", "pass");
-   lprintf_if(info, true, "module: %ls\n", "pass");
-
-```
-*/
+ *  ____ _             _
+ * |_   _(_)_ __  _   _| |    ___   __ _
+ *   | | | | '_ \| | | | |   / _ \ / _` | TinyLog for Modern C++
+ *   | | | | | | | |_| | |__| (_) | (_| | version 1.4.0
+ *   |_| |_|_| |_|\__, |_____\___/ \__, | https://github.com/yanminhui/tinylog
+ *                |___/            |___/
+ *
+ * Licensed under the MIT License <http://opensource.org/licenses/MIT>.
+ * Copyright (c) 2018-2019 yanminhui <mailto:yanminhui163@163.com>.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to
+ * deal in the Software without restriction, including without limitation the
+ * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+ * sell copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+ * IN THE SOFTWARE.
+ *
+ * ```.cpp
+ *
+ * using namespace tinylog;
+ *
+ * int main()
+ * {
+ *     auto inst = registry::create_logger();
+ *
+ *     // setup sink:
+ *     //   - [w]console_sink
+ *     //   - [w]file_sink
+ *     //   - [w]u8_file_sink
+ *     //   - [w]msvc_sink
+ *     //
+ *     // @see std::make_shared
+ *     auto sk = inst->create_sink<sink::file_sink>("d:\\default.log");
+ *     sk->enable_verbose(true);
+ *
+ *     // filter level.
+ *     inst->set_level(info);
+ *
+ *     // usage:
+ *     //   - char
+ *     //            |-- lout_<suffix>、lprintf_<suffix>
+ *     //            |-- lout(<level>)、lprintf(<level>)
+ *     //   - wchar_t
+ *     //            |-- wlout_<suffix>、lwprintf_<suffix>
+ *     //            |-- wlout(<level>)、lwprintf(<level>)
+ *     //
+ *     // suffix: t --> trace
+ *     //         d --> debug
+ *     //         i --> info
+ *     //         w --> warn
+ *     //         e --> error
+ *     //         f --> fatal
+ *     //
+ *     // @see std::cout \ std::wcout \ printf \ wprintf
+ *
+ *     // 1
+ *     lout_i << "module: pass" << std::endl;
+ *
+ *     // 2
+ *     lout(info) << "module: pass" << std::endl;
+ *     lout_if(info, true) << "module: pass" << std::endl;
+ *
+ *     // 3
+ *     lprintf_i("module: %s\n", "pass");
+ *
+ *     // 4
+ *     lprintf(info, "module: %s\n", "pass");
+ *     lprintf_if(info, true, "module: %ls\n", "pass");
+ * }
+ *
+ * ```
+ */
 
 #ifndef TINYTINYLOG_HPP
 #define TINYTINYLOG_HPP
@@ -112,11 +113,8 @@ void main()
 #define TINYLOG_VERSION_MINOR 4
 #define TINYLOG_VERSION_PATCH 0
 
-//////////////////////////////////////////////////////////////////////////////
-//
-// User Customize.
-//
-//////////////////////////////////////////////////////////////////////////////
+/*****************************************************************************/
+/* User Customize. */
 
 // Tinylog is built as shared library default, but use headers only is enabled.
 //
@@ -179,19 +177,20 @@ void main()
 #endif // TINYLOG_USE_HEADER_ONLY || !TINYLOG_WINDOWS_API
 
 #if defined(TINYLOG_USE_HEADER_ONLY) && defined(TINYLOG_EXPORTS)
-#       error must not use TINYLOG_USE_HEADER_ONLY and TINYLOG_EXPORTS at the same time.
+#   error must not use TINYLOG_USE_HEADER_ONLY  \
+    and TINYLOG_EXPORTS at the same time.
 #endif // TINYLOG_USE_HEADER_ONLY && TINYLOG_EXPORTS
 
 #define TINYLOG_CRT_WIDE_(s) L ## s
-#define TINYLOG_CRT_WIDE(s) TINYLOG_CRT_WIDE_(s)
+#define TINYLOG_CRT_WIDE(s)  TINYLOG_CRT_WIDE_(s)
 
-#define TINYLOG_SEPARATOR " "
+#define TINYLOG_SEPARATOR  " "
 #define TINYLOG_SEPARATORW TINYLOG_CRT_WIDE(TINYLOG_SEPARATOR)
 
-#define TINYLOG_TITILE_CHAR '+'
+#define TINYLOG_TITILE_CHAR  '+'
 #define TINYLOG_TITILE_CHARW TINYLOG_CRT_WIDE(TINYLOG_TITILE_CHAR)
 
-#define TINYLOG_DEFAULT "_TINYLOG_DEFAULT_"
+#define TINYLOG_DEFAULT  "_TINYLOG_DEFAULT_"
 #define TINYLOG_DEFAULTW TINYLOG_CRT_WIDE(TINYLOG_DEFAULT)
 
 #define TINYLOG_LEVEL_TRACE  "TRACE"
@@ -202,12 +201,12 @@ void main()
 #define TINYLOG_LEVEL_FATAL  "FATAL"
 #define TINYLOG_LEVEL_UNKOWN "UNKNOWN"
 
-#define TINYLOG_LEVEL_TRACEW TINYLOG_CRT_WIDE(TINYLOG_LEVEL_TRACE)
-#define TINYLOG_LEVEL_DEBUGW TINYLOG_CRT_WIDE(TINYLOG_LEVEL_DEBUG)
-#define TINYLOG_LEVEL_INFOW TINYLOG_CRT_WIDE(TINYLOG_LEVEL_INFO)
-#define TINYLOG_LEVEL_WARNW TINYLOG_CRT_WIDE(TINYLOG_LEVEL_WARN)
-#define TINYLOG_LEVEL_ERRORW TINYLOG_CRT_WIDE(TINYLOG_LEVEL_ERROR)
-#define TINYLOG_LEVEL_FATALW TINYLOG_CRT_WIDE(TINYLOG_LEVEL_FATAL)
+#define TINYLOG_LEVEL_TRACEW  TINYLOG_CRT_WIDE(TINYLOG_LEVEL_TRACE)
+#define TINYLOG_LEVEL_DEBUGW  TINYLOG_CRT_WIDE(TINYLOG_LEVEL_DEBUG)
+#define TINYLOG_LEVEL_INFOW   TINYLOG_CRT_WIDE(TINYLOG_LEVEL_INFO)
+#define TINYLOG_LEVEL_WARNW   TINYLOG_CRT_WIDE(TINYLOG_LEVEL_WARN)
+#define TINYLOG_LEVEL_ERRORW  TINYLOG_CRT_WIDE(TINYLOG_LEVEL_ERROR)
+#define TINYLOG_LEVEL_FATALW  TINYLOG_CRT_WIDE(TINYLOG_LEVEL_FATAL)
 #define TINYLOG_LEVEL_UNKOWNW TINYLOG_CRT_WIDE(TINYLOG_LEVEL_UNKOWN)
 
 #if defined(__GNUC__)
@@ -219,109 +218,107 @@ void main()
 // dlout("logger_name", info) << "message" << std::endl;
 #if defined(TINYLOG_CANCEL_VERBOSE)
 
-#   define dlprintf(ln, lvl, fmt, ...)                  \
+#   define dlprintf(ln, lvl, fmt, ...)                                  \
     for (::tinylog::detail::dlprintf_impl _tl_strm_((ln), (lvl))        \
          ; _tl_strm_; _tl_strm_.flush()) _tl_strm_((fmt), ##__VA_ARGS__)
 
-#   define dlwprintf(ln, lvl, fmt, ...) \
-    for (::tinylog::detail::dlwprintf_impl _tl_strm_((ln), (lvl)) \
+#   define dlwprintf(ln, lvl, fmt, ...)                                 \
+    for (::tinylog::detail::dlwprintf_impl _tl_strm_((ln), (lvl))       \
          ; _tl_strm_; _tl_strm_.flush()) _tl_strm_((fmt), ##__VA_ARGS__)
 
-#   define dlout(ln, lvl) \
-    for (::tinylog::detail::odlstream _tl_strm_((ln), (lvl)) \
+#   define dlout(ln, lvl)                                       \
+    for (::tinylog::detail::odlstream _tl_strm_((ln), (lvl))    \
          ; _tl_strm_; _tl_strm_.flush()) _tl_strm_
 
-#   define wdlout(ln, lvl) \
-    for (::tinylog::detail::wodlstream _tl_strm_((ln), (lvl)) \
+#   define wdlout(ln, lvl)                                      \
+    for (::tinylog::detail::wodlstream _tl_strm_((ln), (lvl))   \
          ; _tl_strm_; _tl_strm_.flush()) _tl_strm_
 
 #else
 
-#   define dlprintf(ln, lvl, fmt, ...) \
-    for (::tinylog::detail::dlprintf_d_impl _tl_strm_((ln), (lvl) \
-        , __FILE__, __LINE__, TINYLOG_FUNCTION) \
+#   define dlprintf(ln, lvl, fmt, ...)                                  \
+    for (::tinylog::detail::dlprintf_d_impl                             \
+         _tl_strm_((ln), (lvl), __FILE__, __LINE__                      \
+                   , TINYLOG_FUNCTION)                                  \
          ; _tl_strm_; _tl_strm_.flush()) _tl_strm_((fmt), ##__VA_ARGS__)
 
-#   define dlwprintf(ln, lvl, fmt, ...)                \
-    for (::tinylog::detail::dlwprintf_d_impl _tl_strm_((ln), (lvl) \
-            , TINYLOG_CRT_WIDE(__FILE__), __LINE__ \
-            , ::tinylog::a2w(TINYLOG_FUNCTION)) \
+#   define dlwprintf(ln, lvl, fmt, ...)                                 \
+    for (::tinylog::detail::dlwprintf_d_impl                            \
+         _tl_strm_((ln), (lvl), TINYLOG_CRT_WIDE(__FILE__), __LINE__    \
+                   , ::tinylog::a2w(TINYLOG_FUNCTION))                  \
          ; _tl_strm_; _tl_strm_.flush()) _tl_strm_((fmt), ##__VA_ARGS__)
 
-#   define dlout(ln, lvl)                     \
-    for (::tinylog::detail::odlstream_d _tl_strm_((ln), (lvl) \
-            , __FILE__, __LINE__, TINYLOG_FUNCTION) \
+#   define dlout(ln, lvl)                               \
+    for (::tinylog::detail::odlstream_d                 \
+         _tl_strm_((ln), (lvl), __FILE__, __LINE__      \
+                   , TINYLOG_FUNCTION)                  \
          ; _tl_strm_; _tl_strm_.flush()) _tl_strm_
 
-#   define wdlout(ln, lvl) \
-    for (::tinylog::detail::wodlstream_d _tl_strm_((ln), (lvl) \
-            , TINYLOG_CRT_WIDE(__FILE__), __LINE__ \
-            , ::tinylog::a2w(TINYLOG_FUNCTION)) \
+#   define wdlout(ln, lvl)                                              \
+    for (::tinylog::detail::wodlstream_d                                \
+         _tl_strm_((ln), (lvl), TINYLOG_CRT_WIDE(__FILE__), __LINE__    \
+                   , ::tinylog::a2w(TINYLOG_FUNCTION))                  \
          ; _tl_strm_; _tl_strm_.flush()) _tl_strm_
 
 #endif // defined(TINYLOG_CANCEL_VERBOSE)
 
 // lout(info) << "message" << std::endl;
-#define lprintf(lvl, fmt, ...) \
-    dlprintf(TINYLOG_DEFAULT, (lvl), (fmt), ##__VA_ARGS__)
-#define lwprintf(lvl, fmt, ...) \
-    dlwprintf(TINYLOG_DEFAULTW, (lvl), (fmt), ##__VA_ARGS__)
-#define lout(lvl) \
-    dlout(TINYLOG_DEFAULT, (lvl))
-#define wlout(lvl) \
-    wdlout(TINYLOG_DEFAULTW, (lvl))
+#define lprintf(lvl, fmt, ...)  dlprintf(TINYLOG_DEFAULT                \
+                                         , (lvl), (fmt), ##__VA_ARGS__)
+#define lwprintf(lvl, fmt, ...) dlwprintf(TINYLOG_DEFAULTW              \
+                                          , (lvl), (fmt), ##__VA_ARGS__)
+#define lout(lvl)  dlout(TINYLOG_DEFAULT, (lvl))
+#define wlout(lvl) wdlout(TINYLOG_DEFAULTW, (lvl))
 
 // dlout_if("logger_name", info, true) << "message" << std::endl;
-#define dlprintf_if(ln, lvl, boolexpr, fmt, ...) \
-    if ((boolexpr)) dlprintf((ln), (lvl), (fmt), ##__VA_ARGS__)
-#define dlwprintf_if(ln, lvl, boolexpr, fmt, ...) \
-    if ((boolexpr)) dlwprintf((ln), (lvl), (fmt), ##__VA_ARGS__)
-#define dlout_if(ln, lvl, boolexpr) \
-    if ((boolexpr)) dlout((ln), (lvl))
-#define wdlout_if(ln, lvl, boolexpr) \
-    if ((boolexpr)) wdlout((ln), (lvl))
+#define dlprintf_if(ln, lvl, boolexpr, fmt, ...)  if ((boolexpr))       \
+        dlprintf((ln), (lvl), (fmt), ##__VA_ARGS__)
+#define dlwprintf_if(ln, lvl, boolexpr, fmt, ...) if ((boolexpr))       \
+        dlwprintf((ln), (lvl), (fmt), ##__VA_ARGS__)
+#define dlout_if(ln, lvl, boolexpr)   if ((boolexpr)) dlout((ln), (lvl))
+#define wdlout_if(ln, lvl, boolexpr)  if ((boolexpr)) wdlout((ln), (lvl))
 
 // lout_if(info, true) << "message" << std::endl;
-#define lprintf_if(lvl, boolexpr, fmt, ...) \
-    if ((boolexpr)) lprintf((lvl), (fmt), ##__VA_ARGS__)
-#define lwprintf_if(lvl, boolexpr, fmt, ...) \
-    if ((boolexpr)) lwprintf((lvl), (fmt), ##__VA_ARGS__)
-#define lout_if(lvl, boolexpr) \
-    if ((boolexpr)) lout((lvl))
-#define wlout_if(lvl, boolexpr) \
-    if ((boolexpr)) wlout((lvl))
+#define lprintf_if(lvl, boolexpr, fmt, ...)  if ((boolexpr))    \
+        lprintf((lvl), (fmt), ##__VA_ARGS__)
+#define lwprintf_if(lvl, boolexpr, fmt, ...) if ((boolexpr))    \
+        lwprintf((lvl), (fmt), ##__VA_ARGS__)
+#define lout_if(lvl, boolexpr)  if ((boolexpr)) lout((lvl))
+#define wlout_if(lvl, boolexpr) if ((boolexpr)) wlout((lvl))
 
 // lout_i << "message" << std::endl;
-#define lprintf_t(fmt, ...) lprintf(::tinylog::trace, fmt, ##__VA_ARGS__)
+#define lprintf_t(fmt, ...)  lprintf(::tinylog::trace, fmt, ##__VA_ARGS__)
 #define lwprintf_t(fmt, ...) lwprintf(::tinylog::trace, fmt, ##__VA_ARGS__)
-#define lout_t lout(::tinylog::trace)
+#define lout_t  lout(::tinylog::trace)
 #define wlout_t wlout(::tinylog::trace)
 
-#define lprintf_d(fmt, ...) lprintf(::tinylog::debug, fmt, ##__VA_ARGS__)
+#define lprintf_d(fmt, ...)  lprintf(::tinylog::debug, fmt, ##__VA_ARGS__)
 #define lwprintf_d(fmt, ...) lwprintf(::tinylog::debug, fmt, ##__VA_ARGS__)
-#define lout_d lout(::tinylog::debug)
+#define lout_d  lout(::tinylog::debug)
 #define wlout_d wlout(::tinylog::debug)
 
-#define lprintf_i(fmt, ...) lprintf(::tinylog::info, fmt, ##__VA_ARGS__)
+#define lprintf_i(fmt, ...)  lprintf(::tinylog::info, fmt, ##__VA_ARGS__)
 #define lwprintf_i(fmt, ...) lwprintf(::tinylog::info, fmt, ##__VA_ARGS__)
-#define lout_i lout(::tinylog::info)
+#define lout_i  lout(::tinylog::info)
 #define wlout_i wlout(::tinylog::info)
 
-#define lprintf_w(fmt, ...) lprintf(::tinylog::warn, fmt, ##__VA_ARGS__)
+#define lprintf_w(fmt, ...)  lprintf(::tinylog::warn, fmt, ##__VA_ARGS__)
 #define lwprintf_w(fmt, ...) lwprintf(::tinylog::warn, fmt, ##__VA_ARGS__)
-#define lout_w lout(::tinylog::warn)
+#define lout_w  lout(::tinylog::warn)
 #define wlout_w wlout(::tinylog::warn)
 
-#define lprintf_e(fmt, ...) lprintf(::tinylog::error, fmt, ##__VA_ARGS__)
+#define lprintf_e(fmt, ...)  lprintf(::tinylog::error, fmt, ##__VA_ARGS__)
 #define lwprintf_e(fmt, ...) lwprintf(::tinylog::error, fmt, ##__VA_ARGS__)
-#define lout_e lout(::tinylog::error)
+#define lout_e  lout(::tinylog::error)
 #define wlout_e wlout(::tinylog::error)
 
-#define lprintf_f(fmt, ...) lprintf(::tinylog::fatal, fmt, ##__VA_ARGS__)
+#define lprintf_f(fmt, ...)  lprintf(::tinylog::fatal, fmt, ##__VA_ARGS__)
 #define lwprintf_f(fmt, ...) lwprintf(::tinylog::fatal, fmt, ##__VA_ARGS__)
-#define lout_f lout(::tinylog::fatal)
+#define lout_f  lout(::tinylog::fatal)
 #define wlout_f wlout(::tinylog::fatal)
 
+#if 0
+#endif
 
 namespace tinylog
 {
@@ -349,10 +346,10 @@ inline time_value curr_time()
 {
     using namespace std::chrono;
 
-    auto const tp           = system_clock::now();
-    auto const dtn          = tp.time_since_epoch();
-    std::time_t const sec   = duration_cast<seconds>(dtn).count();
-    std::size_t const usec  = duration_cast<microseconds>(dtn).count() % 1000000;
+    auto const tp          = system_clock::now();
+    auto const dtn         = tp.time_since_epoch();
+    std::time_t const sec  = duration_cast<seconds>(dtn).count();
+    std::size_t const usec = duration_cast<microseconds>(dtn).count() % 1000000;
     return { sec, static_cast<std::size_t>(usec) };
 }
 
@@ -360,14 +357,14 @@ inline time_value curr_time()
 inline std::size_t curr_thrd_id()
 {
     auto get_thrd_id = []() -> std::size_t
-    {
-        // auto const curr_id = std::this_thread::get_id();
-        // auto gen = std::hash<std::thread::id>();
-        // return static_cast<std::size_t>(gen(curr_id));
-        static std::atomic_size_t id(0u);
-        ++id;
-        return id.load();
-    };
+                       {
+                           // auto const curr_id = std::this_thread::get_id();
+                           // auto gen = std::hash<std::thread::id>();
+                           // return static_cast<std::size_t>(gen(curr_id));
+                           static std::atomic_size_t id(0u);
+                           ++id;
+                           return id.load();
+                       };
 
     static thread_local std::size_t const thrd_id = get_thrd_id();
     return thrd_id;
@@ -413,7 +410,7 @@ strftime_impl(strftimeT strftime_cb, charT const* fmt, time_value const& tv)
 //      std::printf("%s", s);
 inline void ensure_va_args_safe_A() {}
 template <class T, class... Args
-      , typename std::enable_if<!std::is_class<T>::value
+          , typename std::enable_if<!std::is_class<T>::value
                                     && !std::is_same
                                     <typename std::remove_cv
                                      <typename std::remove_pointer
@@ -531,7 +528,7 @@ inline std::uintmax_t file_size(std::string const& filename)
 
     struct stat fn_stat;
     if (::stat(filename.c_str(), &fn_stat) != 0
-            || !S_ISREG(fn_stat.st_mode))
+        || !S_ISREG(fn_stat.st_mode))
     {
         throw std::system_error(errno
                                 , std::system_category()
@@ -613,11 +610,8 @@ gen_title(std::basic_string<charT> const& tm_text, charT sep)
 
 } // namespace detail
 
-//////////////////////////////////////////////////////////////////////////////
-//
-// String Charset Convertion.
-//
-//////////////////////////////////////////////////////////////////////////////
+/*****************************************************************************/
+/* String Charset Convertion. */
 
 template <typename = void, typename = void>
 struct string_traits;
@@ -855,11 +849,8 @@ inline std::wstring a2w(std::string const& s)
     return ws;
 }
 
-//////////////////////////////////////////////////////////////////////////////
-//
-// Log Level.
-//
-//////////////////////////////////////////////////////////////////////////////
+/*****************************************************************************/
+/* Log Level. */
 
 enum level : std::uint8_t
 {
@@ -931,11 +922,8 @@ inline std::basic_string<wchar_t> to_string(level lvl)
     return text;
 }
 
-//////////////////////////////////////////////////////////////////////////////
-//
-// Record Entry.
-//
-//////////////////////////////////////////////////////////////////////////////
+/*****************************************************************************/
+/* Record Entry. */
 
 template <class charT>
 struct basic_record
@@ -1001,11 +989,9 @@ struct basic_record_d : public basic_record<charT>
 using record_d = basic_record_d<char>;
 using wrecord_d = basic_record_d<wchar_t>;
 
-//////////////////////////////////////////////////////////////////////////////
-//
-// Build Layout: Convert record entry to log message string.
-//
-//////////////////////////////////////////////////////////////////////////////
+/*****************************************************************************/
+/* Build Layout: Convert record entry to log message string. */
+
 namespace detail
 {
 
@@ -1073,13 +1059,13 @@ protected:
         ::localtime_r(&r.tv.tv_sec, &ti);
 #endif // TINYLOG_WINDOWS_API
         strm << std::setfill(strm.widen('0'))
-            << std::setw(4) << (ti.tm_year + 1900)
-            << strm.widen('-') << std::setw(2) << (ti.tm_mon + 1)
-            << strm.widen('-') << std::setw(2) << ti.tm_mday
-            << strm.widen(' ') << std::setw(2) << ti.tm_hour
-            << strm.widen(':') << std::setw(2) << ti.tm_min
-            << strm.widen(':') << std::setw(2) << ti.tm_sec
-            << strm.widen('.') << std::setw(6) << r.tv.tv_usec;
+             << std::setw(4) << (ti.tm_year + 1900)
+             << strm.widen('-') << std::setw(2) << (ti.tm_mon + 1)
+             << strm.widen('-') << std::setw(2) << ti.tm_mday
+             << strm.widen(' ') << std::setw(2) << ti.tm_hour
+             << strm.widen(':') << std::setw(2) << ti.tm_min
+             << strm.widen(':') << std::setw(2) << ti.tm_sec
+             << strm.widen('.') << std::setw(6) << r.tv.tv_usec;
     }
 
     static void end_with(ostream_t& strm, char_type delimiter)
@@ -1134,10 +1120,10 @@ struct layout_constructor<wchar_t>
     : public layout_constructor_base<layout_constructor<wchar_t>, wchar_t>
 {
     friend struct layout_constructor_base<layout_constructor<wchar_t>
-        , wchar_t>;
+                                          , wchar_t>;
 
     using base = layout_constructor_base<layout_constructor<wchar_t>
-        , wchar_t>;
+                                         , wchar_t>;
 
     static constexpr auto sep = TINYLOG_SEPARATORW;
     static constexpr auto lf  = L'\n';
@@ -1227,7 +1213,8 @@ template <>
 struct endpage_constructor<wchar_t>
     : public layout_constructor_base<endpage_constructor<wchar_t>, wchar_t>
 {
-    friend struct layout_constructor_base<endpage_constructor<wchar_t>, wchar_t>;
+    friend struct layout_constructor_base<endpage_constructor<wchar_t>
+                                          , wchar_t>;
 
     using base = layout_constructor_base<endpage_constructor<wchar_t>, wchar_t>;
 
@@ -1279,11 +1266,8 @@ protected:
 
 }  // namespace detail
 
-//////////////////////////////////////////////////////////////////////////////
-//
-// Build Formatter：Use layout constructor generate log message string.
-//
-//////////////////////////////////////////////////////////////////////////////
+/*****************************************************************************/
+/* Build Formatter：Use layout constructor generate log message string. */
 
 struct default_layout
 {
@@ -1352,11 +1336,9 @@ private:
     string_t cache_;
 };
 
-//////////////////////////////////////////////////////////////////////////////
-//
-// Colors Support in Terminal Output.
-//
-//////////////////////////////////////////////////////////////////////////////
+/*****************************************************************************/
+/* Colors Support in Terminal Output. */
+
 namespace detail
 {
 
@@ -1421,7 +1403,7 @@ struct rgb
 {
     foreground fg;
     background bg;
-    emphasize em;
+    emphasize  em;
 };
 
 template <class charT>
@@ -1477,10 +1459,10 @@ struct basic_style_impl
         ::GetConsoleScreenBufferInfo(handle, &info);
 
         info.wAttributes &= 0xFF80;
-        using attr_t     = decltype(info.wAttributes);
-        auto fg          = static_cast<attr_t>(c.fg);
-        auto bg          = (info.wAttributes & 0x70) | static_cast<attr_t>(c.bg);
-        auto em          = static_cast<attr_t>(c.em);
+        using attr_t    = decltype(info.wAttributes);
+        auto fg         = static_cast<attr_t>(c.fg);
+        auto bg         = (info.wAttributes & 0x70) | static_cast<attr_t>(c.bg);
+        auto em         = static_cast<attr_t>(c.em);
 
         info.wAttributes |= fg;
         info.wAttributes |= bg;
@@ -1494,9 +1476,10 @@ struct basic_style_impl
 
         std::basic_ostringstream<char_type> oss;
         auto calc = [&oss](std::size_t n)
-        {
-            oss << oss.widen('\033') << oss.widen('[') << n << oss.widen('m');
-        };
+                    {
+                        oss << oss.widen('\033') << oss.widen('[')
+                            << n << oss.widen('m');
+                    };
         calc(static_cast<std::size_t>(curr_.fg));
         calc(static_cast<std::size_t>(curr_.bg));
         calc(static_cast<std::size_t>(curr_.em));
@@ -1563,15 +1546,13 @@ void style(std::basic_string<charT>& color)
 
 }  // namespace detail
 
-//////////////////////////////////////////////////////////////////////////////
-//
-// Log Sink:
-//   - console_sink
-//   - file_sink
-//   - u8_file_sink
-//   - msvc_sink
-//
-//////////////////////////////////////////////////////////////////////////////
+/*****************************************************************************/
+/* Log Sink:
+ *   - console_sink
+ *   - file_sink
+ *   - u8_file_sink
+ *   - msvc_sink
+ */
 
 #if defined(TINYLOG_USE_SINGLE_THREAD)
 using mutex_t = detail::null_mutex;
@@ -1714,20 +1695,22 @@ public:
 protected:
     void writing(level lvl, string_t& msg) override final
     {
-                write_line(lvl, msg);
+        write_line(lvl, msg);
     }
 
 private:
     template <class lineCharT, typename std::enable_if
               <std::is_same<lineCharT, char>::value, int>::type = 0>
-    void write_line(level /*lvl*/, std::basic_string<lineCharT> const& line) const
+    void write_line(level /*lvl*/
+                    , std::basic_string<lineCharT> const& line) const
     {
         std::printf("%s", line.c_str());
     }
 
     template <class lineCharT, typename std::enable_if
               <std::is_same<lineCharT, wchar_t>::value, int>::type = 0>
-    void write_line(level /*lvl*/, std::basic_string<lineCharT> const& line) const
+    void write_line(level /*lvl*/
+                    , std::basic_string<lineCharT> const& line) const
     {
         std::wprintf(L"%ls", line.c_str());
     }
@@ -1883,9 +1866,9 @@ public:
     using string_t  = typename base::string_t;
 
     static constexpr std::uintmax_t default_max_file_size
-        = 10 * 1024 * 1024;  // 10 MB
+    = 10 * 1024 * 1024;  // 10 MB
     static constexpr std::uintmax_t npos
-        = (std::numeric_limits<std::uintmax_t>::max)();
+    = (std::numeric_limits<std::uintmax_t>::max)();
 
 public:
     explicit basic_file_sink(char const* filename
@@ -2039,11 +2022,9 @@ using wmsvc_sink= basic_msvc_sink<wchar_t>;
 
 }  // namespace sink
 
-//////////////////////////////////////////////////////////////////////////////
-//
-// Sink Adapter: Adapt narrow and unicode charactor.
-//
-//////////////////////////////////////////////////////////////////////////////
+/*****************************************************************************/
+/* Sink Adapter: Adapt narrow and unicode charactor. */
+
 namespace detail
 {
 
@@ -2134,11 +2115,8 @@ private:
 
 }  // namesapce detail
 
-//////////////////////////////////////////////////////////////////////////////
-//
-// Logger.
-//
-//////////////////////////////////////////////////////////////////////////////
+/*****************************************************************************/
+/* Logger. */
 
 class logger
 {
@@ -2195,8 +2173,8 @@ public:
     //
     // Usage @see std::make_shared(...)
     // e.g.
-    //   auto file_sink = logger::create_sink<sink::wfile_sink>(L"d:\\error.log");
-    //   if (!*file_sink) {
+    //   auto fk = logger::create_sink<sink::wfile_sink>(L"d:\\error.log");
+    //   if (!*fk) {
     //       // open file failed.
     //   }
     template <class sinkT, class... Args>
@@ -2239,13 +2217,14 @@ public:
     // Generate log title message string.
     static std::string title(std::string const& text = "TinyLog")
     {
-        return detail::gen_title<std::string::value_type>(text
-                , TINYLOG_TITILE_CHAR);
+        using namespace detail;
+        return gen_title<std::string::value_type>(text, TINYLOG_TITILE_CHAR);
     }
 
     static std::wstring wtitle(std::wstring const& text = L"TinyLog")
     {
-        return detail::gen_title(text, TINYLOG_TITILE_CHARW);
+        using namespace detail;
+        return gen_title(text, TINYLOG_TITILE_CHARW);
     }
 
 private:
@@ -2254,18 +2233,16 @@ private:
     std::vector<sink_adapter_t> sink_adapters_;
 };
 
-//////////////////////////////////////////////////////////////////////////////
-//
-// Registry: Set up a central registry of logger.
-//
-//////////////////////////////////////////////////////////////////////////////
+/*****************************************************************************/
+/* Registry: Set up a central registry of logger. */
+
 namespace detail
 {
 
 #if defined(TINYLOG_REGISTRY_THREAD_SAFE)
-    template <class mutexT = std::mutex>
+template <class mutexT = std::mutex>
 #else
-    template <class mutexT = ::tinylog::detail::null_mutex>
+template <class mutexT = ::tinylog::detail::null_mutex>
 #endif // TINYLOG_REGISTRY_THREAD_SAFE
 class registry_impl
 {
@@ -2469,7 +2446,8 @@ template <class mutexT>
 std::shared_ptr<registry_impl<mutexT>> registry_impl<mutexT>::s_inst_;
 
 template <class mutexT>
-typename registry_impl<mutexT>::object_creator registry_impl<mutexT>::s_create_object_;
+typename registry_impl<mutexT>::object_creator
+registry_impl<mutexT>::s_create_object_;
 
 } // namespace detail
 
@@ -2547,11 +2525,9 @@ public:
     }
 };
 
-//////////////////////////////////////////////////////////////////////////////
-//
-//  Capture Logging.
-//
-//////////////////////////////////////////////////////////////////////////////
+/*****************************************************************************/
+/* Capture Logging. */
+
 namespace detail
 {
 
@@ -2641,9 +2617,10 @@ public:
     template <class... Args>
     bool operator()(string_t const& fmt, Args&&... args)
     {
-        sprintf_constructor<char_type>::construct(record_.message
-                                                  , fmt.c_str()
-                                                  , std::forward<Args>(args)...);
+        sprintf_constructor<char_type>::construct(
+            record_.message
+            , fmt.c_str()
+            , std::forward<Args>(args)...);
         return true;
     }
 
@@ -2707,9 +2684,10 @@ public:
     template <class... Args>
     bool operator()(string_t const& fmt, Args&&... args)
     {
-        sprintf_constructor<char_type>::construct(record_.message
-                                                  , fmt.c_str()
-                                                  , std::forward<Args>(args)...);
+        sprintf_constructor<char_type>::construct(
+            record_.message
+            , fmt.c_str()
+            , std::forward<Args>(args)...);
         return true;
     }
 
@@ -2819,7 +2797,7 @@ public:
     }
 
     explicit basic_odlstream(string_t const& logger_name
-                            , level lvl)
+                             , level lvl)
         : base(logger_name, lvl), record_(lvl)
     {
     }

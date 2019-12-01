@@ -5,7 +5,6 @@
 #include "tinylog/tinylog.hpp"
 #include "tinylog/tinylog_extra.hpp"
 
-
 int main(int argc, char* argv[])
 {
     using namespace tinylog;
