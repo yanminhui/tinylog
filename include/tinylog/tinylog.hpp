@@ -410,13 +410,13 @@ strftime_impl(strftimeT strftime_cb, charT const* fmt, time_value const& tv)
 //      std::printf("%s", s);
 inline void ensure_va_args_safe_A() {}
 template <class T, class... Args
-          , typename std::enable_if<!std::is_class<T>::value
-                                    && !std::is_same
-                                    <typename std::remove_cv
-                                     <typename std::remove_pointer
-                                      <typename std::decay<T>::type
-                                       >::type>::type, wchar_t>::value
-                                    , int>::type = 0>
+          , typename std::enable_if<
+                !std::is_class<T>::value && !std::is_same<
+                    typename std::remove_cv<
+                        typename std::remove_pointer<
+                            typename std::decay<T>::type>::type>::type
+                    , wchar_t>::value
+                , int>::type = 0>
 void ensure_va_args_safe_A(T const&, Args... args)
 {
     ensure_va_args_safe_A(args...);
@@ -424,13 +424,13 @@ void ensure_va_args_safe_A(T const&, Args... args)
 
 inline void ensure_va_args_safe_W() {}
 template <class T, class... Args
-          , typename std::enable_if<!std::is_class<T>::value
-                                    && !std::is_same
-                                    <typename std::remove_cv
-                                     <typename std::remove_pointer
-                                      <typename std::decay<T>::type
-                                       >::type>::type, char>::value
-                                    , int>::type = 0>
+          , typename std::enable_if<
+                !std::is_class<T>::value && !std::is_same<
+                    typename std::remove_cv<
+                        typename std::remove_pointer<
+                            typename std::decay<T>::type>::type>::type
+                    , char>::value
+                , int>::type = 0>
 void ensure_va_args_safe_W(T const&, Args... args)
 {
     ensure_va_args_safe_W(args...);
@@ -1308,9 +1308,9 @@ public:
 
 public:
     template <class recordT
-              , typename std::enable_if
-              <std::is_same<typename recordT::char_type
-                            , char_type>::value, int>::type = 0>
+              , typename std::enable_if<
+                    std::is_same<typename recordT::char_type, char_type>::value
+                    , int>::type = 0>
     typename recordT::string_t format(recordT const& r, bool verbose)
     {
         typename recordT::string_t s;
@@ -1320,9 +1320,9 @@ public:
 
     // String charset convertion is needed.
     template <class recordT
-              , typename std::enable_if
-              <!std::is_same<typename recordT::char_type
-                             , char_type>::value, int>::type = 0>
+              , typename std::enable_if<
+                    !std::is_same<typename recordT::char_type, char_type>::value
+                    , int>::type = 0>
     typename recordT::string_t format(recordT const& r, bool verbose)
     {
         typename recordT::string_t s, cache;
@@ -1699,16 +1699,18 @@ protected:
     }
 
 private:
-    template <class lineCharT, typename std::enable_if
-              <std::is_same<lineCharT, char>::value, int>::type = 0>
+    template <class lineCharT
+              , typename std::enable_if<std::is_same<lineCharT, char>::value
+                                        , int>::type = 0>
     void write_line(level /*lvl*/
                     , std::basic_string<lineCharT> const& line) const
     {
         std::printf("%s", line.c_str());
     }
 
-    template <class lineCharT, typename std::enable_if
-              <std::is_same<lineCharT, wchar_t>::value, int>::type = 0>
+    template <class lineCharT
+              , typename std::enable_if<std::is_same<lineCharT, wchar_t>::value
+                                        , int>::type = 0>
     void write_line(level /*lvl*/
                     , std::basic_string<lineCharT> const& line) const
     {
@@ -1741,22 +1743,25 @@ protected:
     }
 
 private:
-    template <class lineCharT, typename std::enable_if
-              <std::is_same<lineCharT, char>::value, int>::type = 0>
+    template <class lineCharT
+              , typename std::enable_if<std::is_same<lineCharT, char>::value
+                                        , int>::type = 0>
     lineCharT line_sep() const
     {
         return '\n';
     }
 
-    template <class lineCharT, typename std::enable_if
-              <std::is_same<lineCharT, wchar_t>::value, int>::type = 0>
+    template <class lineCharT
+              , typename std::enable_if<std::is_same<lineCharT, wchar_t>::value
+                                        , int>::type = 0>
     lineCharT line_sep() const
     {
         return L'\n';
     }
 
-    template <class lineCharT, typename std::enable_if
-              <std::is_same<lineCharT, char>::value, int>::type = 0>
+    template <class lineCharT
+              , typename std::enable_if<std::is_same<lineCharT, char>::value
+                                        , int>::type = 0>
     void write_line(level lvl, std::basic_string<lineCharT> const& line) const
     {
         if (enable_color_)
@@ -1769,8 +1774,9 @@ private:
         std::printf("%s", line.c_str());
     }
 
-    template <class lineCharT, typename std::enable_if
-              <std::is_same<lineCharT, wchar_t>::value, int>::type = 0>
+    template <class lineCharT
+              , typename std::enable_if<std::is_same<lineCharT, wchar_t>::value
+                                        , int>::type = 0>
     void write_line(level lvl, std::basic_string<lineCharT> const& line) const
     {
         if (enable_color_)
@@ -1783,15 +1789,17 @@ private:
         std::wprintf(L"%ls", line.c_str());
     }
 
-    template <class lineCharT, typename std::enable_if
-              <std::is_same<lineCharT, char>::value, int>::type = 0>
+    template <class lineCharT
+              , typename std::enable_if<std::is_same<lineCharT, char>::value
+                                        , int>::type = 0>
     void write_line_sep() const
     {
         std::printf("%c", line_sep<lineCharT>());
     }
 
-    template <class lineCharT, typename std::enable_if
-              <std::is_same<lineCharT, wchar_t>::value, int>::type = 0>
+    template <class lineCharT
+              , typename std::enable_if<std::is_same<lineCharT, wchar_t>::value
+                                        , int>::type = 0>
     void write_line_sep() const
     {
         std::wprintf(L"%lc", line_sep<lineCharT>());
@@ -2000,15 +2008,17 @@ protected:
     }
 
 private:
-    template <class lineCharT, typename std::enable_if
-              <std::is_same<lineCharT, char>::value, int>::type = 0>
+    template <class lineCharT
+              , typename std::enable_if<std::is_same<lineCharT, char>::value
+                                        , int>::type = 0>
     void writing_impl(std::basic_string<lineCharT> const& line) const
     {
         ::OutputDebugStringA(line.c_str());
     }
 
-    template <class lineCharT, typename std::enable_if
-              <std::is_same<lineCharT, wchar_t>::value, int>::type = 0>
+    template <class lineCharT
+              , typename std::enable_if<std::is_same<lineCharT, wchar_t>::value
+                                        , int>::type = 0>
     void writing_impl(std::basic_string<lineCharT> const& line) const
     {
         ::OutputDebugStringW(line.c_str());
@@ -2052,12 +2062,10 @@ struct sink_adapter_base
 template <class charT>
 struct basic_sink_adapter : public sink_adapter_base
 {
-    using char_type   = typename std::conditional<std::is_same
-                                                  <charT, char>::value
-                                                  , char, wchar_t>::type;
-    using extern_type = typename std::conditional<!std::is_same
-                                                  <charT, char>::value
-                                                  , char , wchar_t>::type;
+    using char_type   = typename std::conditional<
+        std::is_same<charT, char>::value, char, wchar_t>::type;
+    using extern_type = typename std::conditional<
+        !std::is_same<charT, char>::value, char , wchar_t>::type;
 
     using string_t    = std::basic_string<char_type>;
     using sink_t      = std::shared_ptr<sink::basic_sink_base<char_type>>;

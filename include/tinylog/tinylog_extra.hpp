@@ -113,8 +113,8 @@ struct delimiters<wchar_t>
 };
 
 // std::tuple
-template<class Tuple, size_t... Indices
-         , class charT, class delimiterT = delimiters<charT>>
+template <class Tuple, size_t... Indices
+          , class charT, class delimiterT = delimiters<charT>>
 inline void print_tuple(Tuple&& t
                         , indices_holder<Indices...>
                         , std::basic_ostream<charT>& out)
@@ -187,9 +187,9 @@ private:
     using begin_t = typename Container::const_iterator(Container::*)() const;
 
     template <typename Container>
-    static true_t& has(typename std::enable_if<std::is_same
-                       <decltype(static_cast<begin_t<Container>>
-                                 (&Container::begin))
+    static true_t& has(typename std::enable_if<
+                       std::is_same<decltype(
+                           static_cast<begin_t<Container>>(&Container::begin))
                        , begin_t<Container>>::value>::type*);
 
     template <typename Container>
@@ -208,9 +208,9 @@ private:
     using end_t = typename Container::const_iterator(Container::*)() const;
 
     template <typename Container>
-    static true_t& has(typename std::enable_if<std::is_same
-                       <decltype(static_cast<end_t<Container>>
-                                 (&Container::end))
+    static true_t& has(typename std::enable_if<
+                       std::is_same<decltype(
+                           static_cast<end_t<Container>>(&Container::end))
                        , end_t<Container>>::value>::type*);
 
     template <typename Container>
@@ -269,8 +269,8 @@ namespace std
 {
 
 // std::pair
-template<class charT, class Key, class Value
-         , class delimiterT = ::tinylog::detail::delimiters<charT>>
+template <class charT, class Key, class Value
+          , class delimiterT = ::tinylog::detail::delimiters<charT>>
 inline std::basic_ostream<charT>&
 operator<<(std::basic_ostream<charT>& out, std::pair<Key, Value> const& p)
 {
@@ -283,7 +283,7 @@ operator<<(std::basic_ostream<charT>& out, std::pair<Key, Value> const& p)
 }
 
 // std::tuple
-template<class charT, class... Args>
+template <class charT, class... Args>
 inline std::basic_ostream<charT>&
 operator<<(std::basic_ostream<charT>& out, std::tuple<Args...> const& t)
 {
@@ -296,12 +296,12 @@ operator<<(std::basic_ostream<charT>& out, std::tuple<Args...> const& t)
 
 // stl::container
 template <class charT, class Container>
-inline typename std::enable_if
-<::tinylog::detail::support_free_begin_stl<Container>::value
-&& !std::is_same<Container
-                 , std::basic_string<typename Container::value_type>>::value
-  , std::basic_ostream<charT>&>::type
-          operator<<(std::basic_ostream<charT>& out, Container const& seq)
+inline typename std::enable_if<
+    ::tinylog::detail::support_free_begin_stl<Container>::value
+    && !std::is_same<Container
+                     , std::basic_string<typename Container::value_type>>::value
+    , std::basic_ostream<charT>&>::type
+operator<<(std::basic_ostream<charT>& out, Container const& seq)
 {
     using namespace ::tinylog::detail;
 
